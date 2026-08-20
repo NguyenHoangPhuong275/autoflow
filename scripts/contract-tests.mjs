@@ -209,6 +209,19 @@ assert('ChatMessageOption interface exists',  typesSrc.includes('interface ChatM
 assert('AgentAction interface exists',        typesSrc.includes('interface AgentAction'));
 assert('PermittedDocument interface exists',  typesSrc.includes('interface PermittedDocument'));
 
+// ─── 9. Error Boundary Contract ───────────────────────────────────
+
+section('Error Boundary Contract');
+
+const errorBoundarySrc = read('src/components/error/AppErrorBoundary.tsx');
+const mainSrc = read('src/main.tsx');
+
+assert('AppErrorBoundary class exists', errorBoundarySrc.includes('class AppErrorBoundary'));
+assert('AppErrorBoundary implements getDerivedStateFromError', errorBoundarySrc.includes('static getDerivedStateFromError'));
+assert('AppErrorBoundary implements componentDidCatch', errorBoundarySrc.includes('componentDidCatch'));
+assert('AppErrorBoundary logs errors with stack', errorBoundarySrc.includes('console.error'));
+assert('AppErrorBoundary wraps App in main.tsx', mainSrc.includes('<AppErrorBoundary>') && mainSrc.includes('</AppErrorBoundary>'));
+
 // ─── Summary ──────────────────────────────────────────────────────
 
 results.push('');
