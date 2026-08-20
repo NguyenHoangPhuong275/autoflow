@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { TrashIcon } from '@heroicons/react/24/outline';
 import { ArrowPathIcon as Loader2, ArrowTrendingUpIcon as TrendingUp, ChartBarIcon as BarChart3, CheckCircleIcon as CheckCircle2, CheckCircleIcon as CheckSquare, CpuChipIcon as Bot, CpuChipIcon as BrainCircuit, DocumentPlusIcon as FilePlus2, DocumentTextIcon as FileText, ExclamationCircleIcon as CircleAlert, MinusCircleIcon as Square, PaperAirplaneIcon as Send, PlayIcon as Play, PlusCircleIcon as PackagePlus, ShieldCheckIcon as ShieldCheck, SparklesIcon as Sparkles, UserIcon as User, XMarkIcon as X, } from '@heroicons/react/24/outline';
 import { DataRow } from '@/types';
 import { AiAgentService, ChatMessage, ChatMessageOption } from '@/core/services/aiAgentService';
@@ -6,6 +7,7 @@ import { executeAgentActions } from '@/core/ai/executeAgentActions';
 import { GoogleSheetReader } from '@/core/parsers/googleSheetReader';
 import { SheetTabInfo } from '@/core/services/googleSyncService';
 import { useAgentDocuments } from '@/hooks/useAgentDocuments';
+import { useChatHistory } from '@/hooks/useChatHistory';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { TypingAnimation } from '@/components/ui/typing-animation';
 interface AiCopilotChatProps {
@@ -85,14 +87,7 @@ function sanitizeBotText(text: string): string {
         .trim();
 }
 export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = [], allSheetHeaders = {}, activeSheetTitle, onUpdateHeaders, onAddColumn, onDeleteColumn, onFreezeRowsCols, onSortRange, onUpdateRange, onFormatCells, onAutoResizeColumns, onSetColumnWidth, onAddChart, onClearCharts, onCreateSheet, onDeleteSheet, onDuplicateSheet, onRenameSheet, onUpdateRow, onBatchUpdateRows, onBatchDeleteRows, onAddRow, onDeleteRow, onClearSheet, onSelectSheetTab, onStartPipeline, onPausePipeline, onResumePipeline, onResetPipeline, onClearLogs, onChangeSpeed, onFetchFromUrl, }) => {
-    const [messages, setMessages] = useState<ChatMessage[]>([
-        {
-            id: 'welcome',
-            sender: 'ai',
-            text: `Xin chào! Tôi là AutoFlow Agent — sẵn sàng thao tác trên bảng tính của bạn. Hãy cho tôi biết bạn cần làm gì.`,
-            timestamp: new Date().toLocaleTimeString('vi-VN', { hour12: false }),
-        },
-    ]);
+    const { messages, setMessages, clearHistory } = useChatHistory();
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { showDocModal, setShowDocModal, newDocName, setNewDocName, newDocContent, setNewDocContent, permittedDocs, toggleDocPermission, handleAddCustomDoc, } = useAgentDocuments(activeSheetTitle, rows.length);
@@ -247,6 +242,10 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
 
           <button onClick={() => setShowDocModal(true)} className="p-1 rounded bg-[#090d16] hover:bg-[#161f32] text-slate-400 hover:text-[var(--text-primary)] border border-[#1a2336]" title="Cấp quyền thêm tài liệu cho AI">
             <FilePlus2 className="w-3 h-3"/>
+          </button>
+
+          <button onClick={clearHistory} className="p-1 rounded bg-[#090d16] hover:bg-rose-950 text-slate-400 hover:text-rose-300 border border-[#1a2336]" title="Xóa lịch sử hội thoại">
+            <TrashIcon className="w-3 h-3"/>
           </button>
         </div>
       </div>
