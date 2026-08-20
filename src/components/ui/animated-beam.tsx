@@ -17,8 +17,10 @@ export interface AnimatedBeamProps {
     endXOffset?: number;
     endYOffset?: number;
     isActive?: boolean;
+    /** Increment to force path recalculation (e.g. after drag) */
+    refreshKey?: number;
 }
-export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({ className, containerRef, fromRef, toRef, curvature = 0, reverse = false, duration = 3, delay = 0, pathColor = '#1e293b', beamColor = '#38bdf8', startXOffset = 0, startYOffset = 0, endXOffset = 0, endYOffset = 0, isActive = true, }) => {
+export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({ className, containerRef, fromRef, toRef, curvature = 0, reverse = false, duration = 3, delay = 0, pathColor = '#1e293b', beamColor = '#38bdf8', startXOffset = 0, startYOffset = 0, endXOffset = 0, endYOffset = 0, isActive = true, refreshKey = 0, }) => {
     const [pathD, setPathD] = useState('');
     const [svgDimensions, setSvgDimensions] = useState({ width: 0, height: 0 });
     useEffect(() => {
@@ -58,6 +60,7 @@ export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({ className, container
         startYOffset,
         endXOffset,
         endYOffset,
+        refreshKey,
     ]);
     return (<svg fill="none" width={svgDimensions.width} height={svgDimensions.height} xmlns="http://www.w3.org/2000/svg" className={cn('pointer-events-none absolute left-0 top-0', className)} viewBox={`0 0 ${svgDimensions.width} ${svgDimensions.height}`}>
 
