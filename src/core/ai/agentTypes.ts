@@ -23,7 +23,7 @@ export interface PermittedDocument {
     contentSummary: string;
 }
 export interface AgentAction {
-    type: 'create_sheet' | 'delete_sheet' | 'duplicate_sheet' | 'rename_sheet' | 'switch_sheet' | 'clear_sheet' | 'update_headers' | 'add_column' | 'delete_column' | 'freeze_rows_cols' | 'sort_range' | 'update_range' | 'set_formula' | 'format_cells' | 'auto_resize_columns' | 'set_column_width' | 'add_chart' | 'clear_charts' | 'update_row' | 'batch_update_rows' | 'add_row' | 'batch_add_rows' | 'delete_row' | 'batch_delete_rows' | 'start_pipeline' | 'pause_pipeline' | 'resume_pipeline' | 'reset_pipeline' | 'change_speed' | 'clear_logs' | 'export_csv' | 'load_url';
+    type: 'create_sheet' | 'delete_sheet' | 'duplicate_sheet' | 'rename_sheet' | 'switch_sheet' | 'clear_sheet' | 'update_headers' | 'add_column' | 'delete_column' | 'freeze_rows_cols' | 'sort_range' | 'update_range' | 'set_formula' | 'format_cells' | 'auto_resize_columns' | 'set_column_width' | 'add_chart' | 'clear_charts' | 'update_row' | 'batch_update_rows' | 'add_row' | 'batch_add_rows' | 'delete_row' | 'batch_delete_rows' | 'start_pipeline' | 'pause_pipeline' | 'resume_pipeline' | 'reset_pipeline' | 'change_speed' | 'clear_logs' | 'export_csv' | 'load_url' | 'search_emails' | 'read_email' | 'send_email' | 'trash_email' | 'delete_email' | 'search_drive' | 'create_drive_folder' | 'rename_drive_file' | 'delete_drive_file' | 'read_google_doc' | 'create_google_doc' | 'append_google_doc';
     rowId?: string;
     rowNumber?: number;
     idCol?: string;
@@ -57,6 +57,21 @@ export interface AgentAction {
     seriesColIndex?: number;
     rowCount?: number;
     rowIndexOffset?: number;
+    query?: string;
+    fileType?: 'all' | 'sheets' | 'docs';
+    maxResults?: number;
+    messageId?: string;
+    documentId?: string;
+    to?: string;
+    subject?: string;
+    body?: string;
+    cc?: string;
+    fileId?: string;
+    newName?: string;
+    folderName?: string;
+    parentFolderId?: string;
+    text?: string;
+    content?: string;
     updates?: Array<{
         idCol?: string;
         rowNumber?: number;

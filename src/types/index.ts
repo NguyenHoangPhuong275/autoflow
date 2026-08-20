@@ -1,5 +1,5 @@
-export type DataSourceId = 'sample' | 'google_sheets' | 'local_file';
-export type AppServiceId = 'google_sheets' | 'google_docs' | 'ms_excel' | 'local_file';
+export type DataSourceId = 'sample' | 'google_sheets' | 'local_file' | 'google_drive' | 'gmail' | 'google_docs';
+export type AppServiceId = 'google_sheets' | 'google_docs' | 'google_drive' | 'gmail' | 'ms_excel' | 'local_file';
 export type RowStatus = 'pending' | 'running' | 'success' | 'failed';
 export interface DataRow {
     id: string;

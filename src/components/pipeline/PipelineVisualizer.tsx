@@ -1,12 +1,14 @@
 import React, { useRef, useState, useCallback, useEffect } from 'react';
 import {
   ArrowPathIcon as RotateCcw,
-  CircleStackIcon as Database,
   CpuChipIcon as Cpu,
   DocumentArrowUpIcon as HardDrive,
   SignalIcon as Activity,
   SparklesIcon as BrainCircuit,
   TableCellsIcon as FileSpreadsheet,
+  EnvelopeIcon as Mail,
+  FolderIcon as Folder,
+  DocumentTextIcon as FileDoc,
 } from '@heroicons/react/24/outline';
 import { AnimatedBeam } from '@/components/ui/animated-beam';
 import { Meteors } from '@/components/ui/meteors';
@@ -43,8 +45,10 @@ const DraggableNode: React.FC<DraggableNodeProps> = ({ id, nodeRef, containerRef
 
 export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSourceId, stage }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const sampleRef = useRef<HTMLDivElement>(null);
   const sheetsRef = useRef<HTMLDivElement>(null);
+  const gmailRef = useRef<HTMLDivElement>(null);
+  const driveRef = useRef<HTMLDivElement>(null);
+  const docsRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLDivElement>(null);
   const engineRef = useRef<HTMLDivElement>(null);
   const deepSeekRef = useRef<HTMLDivElement>(null);
@@ -65,7 +69,7 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
 
   const handleResetPositions = useCallback(() => {
     clearStoredPositions();
-    const allRefs = [sampleRef, sheetsRef, fileRef, engineRef, deepSeekRef];
+    const allRefs = [sheetsRef, gmailRef, driveRef, docsRef, fileRef, engineRef, deepSeekRef];
     allRefs.forEach((r) => {
       if (r.current) {
         r.current.style.left = '0px';
@@ -79,15 +83,6 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
 
   const sources = [
     {
-      id: 'sample' as const,
-      storageId: 'source_sample',
-      label: 'Dữ liệu mẫu',
-      icon: Database,
-      ref: sampleRef,
-      beamColor: '#6366f1',
-      activeClass: 'bg-[#151630] border-indigo-500 text-indigo-300',
-    },
-    {
       id: 'google_sheets' as const,
       storageId: 'source_google_sheets',
       label: 'Google Sheets',
@@ -95,6 +90,33 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
       ref: sheetsRef,
       beamColor: '#10b981',
       activeClass: 'bg-[#0e1c2e] border-emerald-500 text-emerald-300',
+    },
+    {
+      id: 'gmail' as const,
+      storageId: 'source_gmail',
+      label: 'Gmail API',
+      icon: Mail,
+      ref: gmailRef,
+      beamColor: '#f43f5e',
+      activeClass: 'bg-[#2a131a] border-rose-500 text-rose-300',
+    },
+    {
+      id: 'google_drive' as const,
+      storageId: 'source_google_drive',
+      label: 'Google Drive',
+      icon: Folder,
+      ref: driveRef,
+      beamColor: '#3b82f6',
+      activeClass: 'bg-[#0f1d38] border-blue-500 text-blue-300',
+    },
+    {
+      id: 'google_docs' as const,
+      storageId: 'source_google_docs',
+      label: 'Google Docs',
+      icon: FileDoc,
+      ref: docsRef,
+      beamColor: '#06b6d4',
+      activeClass: 'bg-[#0b222d] border-cyan-500 text-cyan-300',
     },
     {
       id: 'local_file' as const,
@@ -117,7 +139,7 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
       <div className="absolute left-2.5 right-2.5 top-2 flex items-center justify-between border-b border-[#1a2336] pb-1 text-[10px] text-slate-400">
         <div className="flex items-center gap-1.5 font-bold">
           <span className={`h-1.5 w-1.5 rounded-full ${isRunning ? 'animate-pulse bg-cyan-400' : 'bg-slate-600'}`} />
-          <span className="text-slate-300">LUỒNG XỬ LÝ</span>
+          <span className="text-slate-300">LUỒNG XỬ LÝ WORKSPACE</span>
         </div>
         <div className="flex items-center gap-1.5">
           {isRunning && (
@@ -148,11 +170,11 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
             nodeRef={ref as React.RefObject<HTMLDivElement>}
             containerRef={containerRef as React.RefObject<HTMLDivElement>}
             onDragMove={handleDragMove}
-            className={`flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] transition-colors ${
-              activeSourceId === id ? `${activeClass} font-bold` : 'border-[#1a2336] bg-[#070a12] text-slate-600'
+            className={`flex items-center gap-1 rounded border px-1.5 py-0.5 text-[9px] sm:text-[10px] transition-colors cursor-grab active:cursor-grabbing ${
+              activeSourceId === id ? `${activeClass} font-bold` : 'border-[#1a2336] bg-[#070a12] text-slate-500 hover:text-slate-300'
             }`}
           >
-            <Icon className="h-2.5 w-2.5" />
+            <Icon className="h-2.5 w-2.5 shrink-0" />
             <span>{label}</span>
           </DraggableNode>
         ))}
@@ -164,11 +186,11 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
         nodeRef={engineRef as React.RefObject<HTMLDivElement>}
         containerRef={containerRef as React.RefObject<HTMLDivElement>}
         onDragMove={handleDragMove}
-        className={`z-10 mt-4 flex flex-col items-center gap-1 rounded-lg border px-3 py-1.5 text-center transition-colors ${
+        className={`z-10 mt-4 flex flex-col items-center gap-1 rounded-lg border px-3 py-1.5 text-center transition-colors cursor-grab active:cursor-grabbing ${
           isRunning ? 'border-cyan-400 bg-[#0e1c2e] text-cyan-300' : 'border-[#1a2336] bg-[#070a12] text-slate-300'
         }`}
       >
-        <Cpu className="h-4 w-4" />
+        <Cpu className="h-4 w-4 text-indigo-400" />
         <span className="text-[11px] font-bold">AutoFlow Core</span>
       </DraggableNode>
 
@@ -178,13 +200,13 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
         nodeRef={deepSeekRef as React.RefObject<HTMLDivElement>}
         containerRef={containerRef as React.RefObject<HTMLDivElement>}
         onDragMove={handleDragMove}
-        className={`z-10 mt-4 flex items-center gap-1.5 rounded border px-2 py-1.5 text-[10px] font-bold ${
+        className={`z-10 mt-4 flex items-center gap-1.5 rounded border px-2 py-1.5 text-[10px] font-bold cursor-grab active:cursor-grabbing ${
           isRunning
             ? 'border-cyan-500 bg-cyan-950/70 text-cyan-300'
             : 'border-[#1a2336] bg-[#070a12] text-slate-400'
         }`}
       >
-        <BrainCircuit className="h-3.5 w-3.5" />
+        <BrainCircuit className="h-3.5 w-3.5 text-cyan-400" />
         <span>DeepSeek AI</span>
       </DraggableNode>
 
@@ -195,10 +217,10 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
           containerRef={containerRef}
           fromRef={ref}
           toRef={engineRef}
-          curvature={(index - 1) * 8}
+          curvature={(index - 2) * 6}
           beamColor={beamColor}
           duration={isRunning ? 1.5 : 3.5}
-          isActive={activeSourceId === id}
+          isActive={activeSourceId === id || (activeSourceId === 'google_sheets' && id === 'google_sheets')}
           refreshKey={refreshKey}
         />
       ))}

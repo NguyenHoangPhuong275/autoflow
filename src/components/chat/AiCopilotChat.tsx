@@ -1,6 +1,27 @@
 import React, { useState } from 'react';
 import { TrashIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
-import { ArrowPathIcon as Loader2, ArrowTrendingUpIcon as TrendingUp, ChartBarIcon as BarChart3, CheckCircleIcon as CheckCircle2, CheckCircleIcon as CheckSquare, CpuChipIcon as Bot, CpuChipIcon as BrainCircuit, DocumentPlusIcon as FilePlus2, DocumentTextIcon as FileText, ExclamationCircleIcon as CircleAlert, MinusCircleIcon as Square, PaperAirplaneIcon as Send, PlayIcon as Play, PlusCircleIcon as PackagePlus, ShieldCheckIcon as ShieldCheck, SparklesIcon as Sparkles, UserIcon as User, XMarkIcon as X, } from '@heroicons/react/24/outline';
+import {
+  ArrowPathIcon as Loader2,
+  ArrowTrendingUpIcon as TrendingUp,
+  ChartBarIcon as BarChart3,
+  CheckCircleIcon as CheckCircle2,
+  CheckCircleIcon as CheckSquare,
+  CpuChipIcon as Bot,
+  CpuChipIcon as BrainCircuit,
+  DocumentPlusIcon as FilePlus2,
+  DocumentTextIcon as FileText,
+  DocumentTextIcon as FileDoc,
+  EnvelopeIcon as Mail,
+  FolderIcon as Folder,
+  ExclamationCircleIcon as CircleAlert,
+  MinusCircleIcon as Square,
+  PaperAirplaneIcon as Send,
+  PlusCircleIcon as PackagePlus,
+  ShieldCheckIcon as ShieldCheck,
+  SparklesIcon as Sparkles,
+  UserIcon as User,
+  XMarkIcon as X,
+} from '@heroicons/react/24/outline';
 import { DataRow } from '@/types';
 import { AiAgentService, ChatMessage, ChatMessageOption } from '@/core/services/aiAgentService';
 import { executeAgentActions } from '@/core/ai/executeAgentActions';
@@ -59,24 +80,34 @@ interface AiCopilotChatProps {
 }
 const QUICK_ACTIONS = [
     {
+        label: '📧 Đọc 5 email mới',
+        prompt: 'Đọc 5 email mới nhất trong hòm thư Gmail và tóm tắt nội dung',
+        icon: Mail,
+    },
+    {
+        label: '📁 Tìm file trên Drive',
+        prompt: 'Tìm kiếm tất cả bảng tính Google Sheets và tài liệu Google Docs có trong Google Drive của tôi',
+        icon: Folder,
+    },
+    {
+        label: '📝 Đọc Google Docs',
+        prompt: 'Đọc và trích xuất nội dung từ tài liệu Google Docs',
+        icon: FileDoc,
+    },
+    {
         label: 'Thống kê tồn kho & giá',
         prompt: 'Thống kê tồn kho & giá',
         icon: BarChart3,
     },
     {
-        label: 'Đổi tên cột Orders sang camelCase',
-        prompt: 'thay đổi tên các cột ở trong orders theo format: aB (camelCase)',
+        label: 'Đổi tên cột camelCase',
+        prompt: 'thay đổi tên các cột ở trong sheet hiện tại theo format: aB (camelCase)',
         icon: TrendingUp,
     },
     {
-        label: 'Thêm sản phẩm GPT VIP giá 100k',
+        label: 'Thêm sản phẩm VIP',
         prompt: 'Thêm sản phẩm GPT VIP giá 100k',
         icon: PackagePlus,
-    },
-    {
-        label: 'Xóa toàn bộ sheet Orders',
-        prompt: 'Xóa toàn bộ dữ liệu ở sheet Orders giúp tôi',
-        icon: Play,
     },
 ] as const;
 function sanitizeBotText(text: string): string {
@@ -84,13 +115,7 @@ function sanitizeBotText(text: string): string {
         .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1')
         .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
         .replace(/^\s*(?:-{3,}|_{3,})\s*$/gm, '')
-        .replace(/^\s*>\s?/gm, '')
-        .replace(/^\s*[-+•]\s+/gm, '')
-        .replace(/[*#`~]/g, '')
         .replace(/_{2}([^_\n]+)_{2}/g, '$1')
-        .replace(/(^|\s)_([^_\n]+)_(?=\s|$)/g, '$1$2')
-        .replace(/[ \t]{2,}/g, ' ')
-        .replace(/\n{3,}/g, '\n\n')
         .trim();
 }
 export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = [], allSheetHeaders = {}, activeSheetTitle, onUpdateHeaders, onAddColumn, onDeleteColumn, onFreezeRowsCols, onSortRange, onUpdateRange, onFormatCells, onAutoResizeColumns, onSetColumnWidth, onAddChart, onClearCharts, onCreateSheet, onDeleteSheet, onDuplicateSheet, onRenameSheet, onUpdateRow, onBatchUpdateRows, onBatchDeleteRows, onAddRow, onDeleteRow, onClearSheet, onSelectSheetTab, onStartPipeline, onPausePipeline, onResumePipeline, onResetPipeline, onClearLogs, onChangeSpeed, onFetchFromUrl, }) => {
@@ -266,14 +291,34 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
                 }
             }
 
+            // Extract detailed informational messages from executed actions (e.g. Gmail list, Drive files, Docs text)
+            const informationalResults = report.results
+                .filter((r) => r.status === 'success' && r.message)
+                .map((r) => r.message);
+
+            let finalDisplayText = response.reply?.trim();
+            const isGenericReply = !finalDisplayText || 
+                finalDisplayText === 'Đã thực thi toàn bộ yêu cầu của bạn.' || 
+                finalDisplayText === 'Đã thực hiện toàn bộ yêu cầu của bạn.';
+
+            if (isGenericReply) {
+                if (informationalResults.length > 0) {
+                    finalDisplayText = informationalResults.join('\n\n');
+                } else if (actionSummaries.length > 0) {
+                    finalDisplayText = `✅ ${actionSummaries.join('\n• ')}`;
+                } else {
+                    finalDisplayText = 'Đã thực thi toàn bộ yêu cầu của bạn.';
+                }
+            } else if (informationalResults.length > 0 && !informationalResults.some(r => finalDisplayText.includes(r.slice(0, 20)))) {
+                finalDisplayText = `${finalDisplayText}\n\n${informationalResults.join('\n\n')}`;
+            }
+
             const aiMsg: ChatMessage = {
                 id: `ai-${Date.now()}`,
                 sender: 'ai',
-                text: sanitizeBotText(response.reply || 'Đã thực hiện toàn bộ yêu cầu của bạn.'),
+                text: sanitizeBotText(finalDisplayText),
                 timestamp: new Date().toLocaleTimeString('vi-VN', { hour12: false }),
-                actionSummary: actionSummaryText || (actionSummaries.length > 0
-                    ? `Đã thực thi: ${actionSummaries.join(', ')}`
-                    : undefined),
+                actionSummary: actionSummaryText,
                 options: response.options,
             };
             setMessages((prev) => [...prev, aiMsg]);
@@ -390,13 +435,38 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
       </div>
 
       <div className="px-2.5 py-1 bg-[#070a12] border-b border-[#1a2336] flex items-center gap-1.5 overflow-x-auto text-[10px] shrink-0">
-        <span className="text-slate-500 font-bold uppercase shrink-0">Tài liệu:</span>
-        {permittedDocs.map((doc) => (<button key={doc.id} onClick={() => toggleDocPermission(doc.id)} className={`px-2 py-0.5 rounded flex items-center gap-1 shrink-0 border transition-colors ${doc.isGranted
+        <span className="text-slate-500 font-bold uppercase shrink-0">Workspace:</span>
+        <span className="px-2 py-0.5 rounded flex items-center gap-1 shrink-0 bg-[#0e1c2e] border border-emerald-500/40 text-emerald-300 font-medium">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+          <span>Sheet: {activeSheetTitle}</span>
+        </span>
+        <span className="px-2 py-0.5 rounded flex items-center gap-1 shrink-0 bg-[#241219] border border-rose-500/40 text-rose-300 font-medium">
+          <span className="w-1.5 h-1.5 rounded-full bg-rose-400"></span>
+          <span>Gmail</span>
+        </span>
+        <span className="px-2 py-0.5 rounded flex items-center gap-1 shrink-0 bg-[#0f1d38] border border-blue-500/40 text-blue-300 font-medium">
+          <span className="w-1.5 h-1.5 rounded-full bg-blue-400"></span>
+          <span>Drive</span>
+        </span>
+        <span className="px-2 py-0.5 rounded flex items-center gap-1 shrink-0 bg-[#0b222d] border border-cyan-500/40 text-cyan-300 font-medium">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
+          <span>Docs</span>
+        </span>
+        {permittedDocs.map((doc) => (
+          <button
+            key={doc.id}
+            onClick={() => toggleDocPermission(doc.id)}
+            className={`px-2 py-0.5 rounded flex items-center gap-1 shrink-0 border transition-colors ${
+              doc.isGranted
                 ? 'bg-[#131b2e] border-indigo-500/50 text-indigo-200'
-                : 'bg-[#090d16] border-[#1a2336] text-slate-600'}`} title={doc.contentSummary}>
-            {doc.isGranted ? (<CheckSquare className="w-2.5 h-2.5 text-indigo-400"/>) : (<Square className="w-2.5 h-2.5 text-slate-600"/>)}
+                : 'bg-[#090d16] border-[#1a2336] text-slate-600'
+            }`}
+            title={doc.contentSummary}
+          >
+            {doc.isGranted ? <CheckSquare className="w-2.5 h-2.5 text-indigo-400" /> : <Square className="w-2.5 h-2.5 text-slate-600" />}
             <span className="truncate max-w-[130px]">{doc.name}</span>
-          </button>))}
+          </button>
+        ))}
       </div>
 
       <div className="flex-1 p-3 bg-[#070a12] overflow-y-auto space-y-3 select-text">

@@ -33,6 +33,18 @@ export const AGENT_ACTION_TYPES = new Set<AgentAction['type']>([
     'clear_logs',
     'export_csv',
     'load_url',
+    'search_emails',
+    'read_email',
+    'send_email',
+    'trash_email',
+    'delete_email',
+    'search_drive',
+    'create_drive_folder',
+    'rename_drive_file',
+    'delete_drive_file',
+    'read_google_doc',
+    'create_google_doc',
+    'append_google_doc',
 ]);
 export function isAgentAction(value: unknown): value is AgentAction {
     if (!value || typeof value !== 'object')

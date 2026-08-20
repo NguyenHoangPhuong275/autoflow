@@ -9,6 +9,12 @@ export interface ActionExecutionResult {
   error?: string;
   affectedRows?: number[];
   sheetTitle?: string;
+  data?: unknown;
+  emails?: unknown;
+  email?: unknown;
+  files?: unknown;
+  doc?: unknown;
+  [key: string]: unknown;
 }
 
 /** Complete report for an action batch */

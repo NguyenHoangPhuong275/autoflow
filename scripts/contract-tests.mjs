@@ -71,12 +71,26 @@ assert(
 
 section('Agent Tools Snapshot');
 
-const toolsSrc = read('src/core/ai/agentTools.ts');
+const toolFiles = [
+  'src/core/ai/agentTools.ts',
+  'src/core/ai/tools/sheetTools.ts',
+  'src/core/ai/tools/rowTools.ts',
+  'src/core/ai/tools/pipelineTools.ts',
+  'src/core/ai/tools/gmailTools.ts',
+  'src/core/ai/tools/driveTools.ts',
+  'src/core/ai/tools/docsTools.ts',
+];
+let toolsSrc = '';
+for (const f of toolFiles) {
+  try { toolsSrc += '\n' + read(f); } catch {}
+}
 const toolNameRegex = /tool\(\s*'([a-z_]+)'/g;
 const toolNames = [];
 let match;
 while ((match = toolNameRegex.exec(toolsSrc)) !== null) {
-  toolNames.push(match[1]);
+  if (!toolNames.includes(match[1])) {
+    toolNames.push(match[1]);
+  }
 }
 
 const EXPECTED_TOOLS = [
@@ -88,6 +102,9 @@ const EXPECTED_TOOLS = [
   'add_row', 'batch_add_rows', 'delete_row', 'batch_delete_rows',
   'start_pipeline', 'pause_pipeline', 'resume_pipeline', 'reset_pipeline',
   'change_speed', 'clear_logs', 'export_csv', 'load_url',
+  'search_emails', 'read_email', 'send_email', 'trash_email', 'delete_email',
+  'search_drive', 'create_drive_folder', 'rename_drive_file', 'delete_drive_file',
+  'read_google_doc', 'create_google_doc', 'append_google_doc',
 ];
 
 assert(
@@ -118,10 +135,10 @@ section('System Prompt');
 
 const promptSrc = read('src/core/ai/buildAgentPrompt.ts');
 const promptHash = hash(promptSrc);
-assert(`buildAgentPrompt.ts hash captured: ${promptHash}`, true);
+assert('buildAgentPrompt.ts hash captured: ' + promptHash, Boolean(promptHash));
 assert(
   'Prompt contains boundary rules',
-  promptSrc.includes('RANH GIỚI QUYỀN HẠN TUYỆT ĐỐI')
+  promptSrc.includes('BOUNDARY RULES')
 );
 assert(
   'Prompt contains FULL ACCESS policy',

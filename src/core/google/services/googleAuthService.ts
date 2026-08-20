@@ -101,7 +101,7 @@ export class GoogleAuthService {
                 }
                 const client = (window as any).google.accounts.oauth2.initTokenClient({
                     client_id: clientId,
-                    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents.readonly https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email',
+                    scope: 'https://mail.google.com/ https://www.googleapis.com/auth/drive https://www.googleapis.com/auth/documents https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email',
                     callback: async (tokenResponse: any) => {
                         if (tokenResponse.error) {
                             reject(new Error(tokenResponse.error_description || tokenResponse.error));
