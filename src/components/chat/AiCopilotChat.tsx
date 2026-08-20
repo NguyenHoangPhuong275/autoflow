@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { TrashIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, ArrowUturnLeftIcon } from '@heroicons/react/24/outline';
 import { ArrowPathIcon as Loader2, ArrowTrendingUpIcon as TrendingUp, ChartBarIcon as BarChart3, CheckCircleIcon as CheckCircle2, CheckCircleIcon as CheckSquare, CpuChipIcon as Bot, CpuChipIcon as BrainCircuit, DocumentPlusIcon as FilePlus2, DocumentTextIcon as FileText, ExclamationCircleIcon as CircleAlert, MinusCircleIcon as Square, PaperAirplaneIcon as Send, PlayIcon as Play, PlusCircleIcon as PackagePlus, ShieldCheckIcon as ShieldCheck, SparklesIcon as Sparkles, UserIcon as User, XMarkIcon as X, } from '@heroicons/react/24/outline';
 import { DataRow } from '@/types';
 import { AiAgentService, ChatMessage, ChatMessageOption } from '@/core/services/aiAgentService';
 import { executeAgentActions } from '@/core/ai/executeAgentActions';
 import { buildModelFacingSummary } from '@/core/ai/actionExecutionTypes';
+import { createInverseActions } from '@/core/undo/createInverseActions';
+import type { ActionSnapshot } from '@/core/undo/undoTypes';
 import { GoogleSheetReader } from '@/core/parsers/googleSheetReader';
 import { SheetTabInfo } from '@/core/services/googleSyncService';
 import { useAgentDocuments } from '@/hooks/useAgentDocuments';
 import { useChatHistory } from '@/hooks/useChatHistory';
 import { useDestructiveActionQueue } from '@/hooks/useDestructiveActionQueue';
+import { useUndoStack } from '@/hooks/useUndoStack';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { AGENT_BRAND } from '@/core/ai/agentBrand';
 import { TypingAnimation } from '@/components/ui/typing-animation';
@@ -96,7 +99,74 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
     const [isLoading, setIsLoading] = useState(false);
     const { showDocModal, setShowDocModal, newDocName, setNewDocName, newDocContent, setNewDocContent, permittedDocs, toggleDocPermission, handleAddCustomDoc, } = useAgentDocuments(activeSheetTitle, rows.length);
     const { pendingAction, requestConfirmation, confirmAction, cancelAction } = useDestructiveActionQueue();
+    const { undoStack, canUndo, pushTransaction, popTransaction } = useUndoStack();
     const messagesEndRef = useAutoScroll<HTMLDivElement>(true, [messages, isLoading]);
+
+    const handleUndo = async () => {
+        if (!canUndo || isLoading) return;
+        const tx = popTransaction();
+        if (!tx) return;
+
+        setIsLoading(true);
+        try {
+            const { summaries, report } = await executeAgentActions(tx.inverseActions, {
+                rows,
+                activeSheetTitle: tx.sheetTitle || activeSheetTitle,
+                onUpdateHeaders,
+                onAddColumn,
+                onDeleteColumn,
+                onFreezeRowsCols,
+                onSortRange,
+                onUpdateRange,
+                onFormatCells,
+                onAutoResizeColumns,
+                onSetColumnWidth,
+                onAddChart,
+                onClearCharts,
+                onCreateSheet,
+                onDeleteSheet,
+                onDuplicateSheet,
+                onRenameSheet,
+                onUpdateRow,
+                onBatchUpdateRows,
+                onBatchDeleteRows,
+                onAddRow,
+                onDeleteRow,
+                onClearSheet,
+                onSelectSheetTab,
+                onStartPipeline,
+                onPausePipeline,
+                onResumePipeline,
+                onResetPipeline,
+                onClearLogs,
+                onChangeSpeed,
+                onFetchFromUrl,
+                requestDestructiveConfirmation: (action) => requestConfirmation(action, tx.sheetTitle || activeSheetTitle, rows.length),
+            });
+
+            const isFullSuccess = report.failedCount === 0 && report.cancelledCount === 0;
+            const undoMsg: ChatMessage = {
+                id: `undo-${Date.now()}`,
+                sender: isFullSuccess ? 'system' : 'ai',
+                text: isFullSuccess
+                    ? `↩️ Đã hoàn tác thành công: ${tx.description}`
+                    : `⚠️ Hoàn tác một phần (${report.successCount}/${report.totalActions} thành công): ${summaries.join(', ')}`,
+                timestamp: new Date().toLocaleTimeString('vi-VN', { hour12: false }),
+            };
+            setMessages((prev) => [...prev, undoMsg]);
+        } catch (err: any) {
+            const errorMsg: ChatMessage = {
+                id: `undo-err-${Date.now()}`,
+                sender: 'system',
+                text: `❌ Lỗi khi hoàn tác: ${err.message}`,
+                timestamp: new Date().toLocaleTimeString('vi-VN', { hour12: false }),
+            };
+            setMessages((prev) => [...prev, errorMsg]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
     const handleSendMessage = async (textToSend?: string) => {
         const query = textToSend || input;
         if (!query.trim() || isLoading)
@@ -119,6 +189,15 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
             }
         }
         try {
+            // Snapshot before executing actions for undo/rollback capability
+            const snapshot: ActionSnapshot = {
+                sheetTitle: activeSheetTitle,
+                rows: rows.map((r) => ({ ...r, data: { ...r.data } })),
+                headers: rows.length > 0 ? Object.keys(rows[0].data) : (allSheetHeaders[activeSheetTitle] || []),
+                allSheetHeaders: { ...allSheetHeaders },
+                timestamp: Date.now(),
+            };
+
             const allTabs = sheetTabs.map((t) => t.title);
             const response = await AiAgentService.chatWithAgent(query.trim(), messages, rows, activeSheetTitle, allTabs, permittedDocs, allSheetHeaders);
             const { summaries: actionSummaries, report } = await executeAgentActions(response.actions ?? [], {
@@ -164,6 +243,26 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
                 if (report.failedCount > 0) parts.push(`${report.failedCount} thất bại`);
                 if (report.cancelledCount > 0) parts.push(`${report.cancelledCount} đã hủy`);
                 actionSummaryText = `Đã thực thi ${report.totalActions} thao tác: ${parts.join(', ')}`;
+            }
+
+            // Record transaction for undo stack if actions succeeded
+            if (report.successCount > 0) {
+                const succeededActions = (response.actions ?? []).filter((_, idx) => report.results[idx]?.status === 'success');
+                if (succeededActions.length > 0) {
+                    const inverseActions = createInverseActions(succeededActions, snapshot);
+                    if (inverseActions.length > 0) {
+                        pushTransaction({
+                            id: `tx-${Date.now()}`,
+                            timestamp: Date.now(),
+                            description: actionSummaryText || 'Thao tác bảng tính',
+                            sheetTitle: activeSheetTitle,
+                            originalActions: succeededActions,
+                            inverseActions,
+                            snapshot,
+                            status: 'ready',
+                        });
+                    }
+                }
             }
 
             const aiMsg: ChatMessage = {
@@ -268,6 +367,16 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
             <span>{AGENT_BRAND.statusLabel}</span>
           </div>
 
+          <button
+            onClick={handleUndo}
+            disabled={!canUndo || isLoading}
+            className="px-2 py-0.5 rounded bg-[#090d16] hover:bg-[#161f32] text-slate-300 hover:text-white border border-[#1a2336] disabled:opacity-30 disabled:hover:bg-[#090d16] flex items-center gap-1 font-bold text-[10px] transition-colors"
+            title={canUndo ? `Hoàn tác thao tác trước (${undoStack.length} bước lưu trữ)` : "Không có thao tác nào để hoàn tác"}
+          >
+            <ArrowUturnLeftIcon className="w-3 h-3 text-amber-400" />
+            <span>Hoàn tác{canUndo ? ` (${undoStack.length})` : ''}</span>
+          </button>
+
           <button onClick={() => setShowDocModal(true)} className="p-1 rounded bg-[#090d16] hover:bg-[#161f32] text-slate-400 hover:text-[var(--text-primary)] border border-[#1a2336]" title="Cấp quyền thêm tài liệu cho AI">
             <FilePlus2 className="w-3 h-3"/>
           </button>
@@ -348,9 +457,22 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
                   </div>
                 </div>)}
 
-              {msg.actionSummary && (<div className="mt-1 px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-700/60 text-emerald-300 text-[10px] flex items-center gap-1 font-bold">
-                  <CheckCircle2 className="w-3 h-3 text-emerald-400"/>
-                  <span>{sanitizeBotText(msg.actionSummary)}</span>
+              {msg.actionSummary && (<div className="mt-1 flex items-center justify-between gap-2 px-2 py-0.5 rounded bg-emerald-950/70 border border-emerald-700/60 text-emerald-300 text-[10px]">
+                  <div className="flex items-center gap-1 font-bold truncate">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0"/>
+                    <span className="truncate">{sanitizeBotText(msg.actionSummary)}</span>
+                  </div>
+                  {canUndo && (
+                    <button
+                      onClick={handleUndo}
+                      disabled={isLoading}
+                      className="shrink-0 px-1.5 py-0.2 rounded bg-emerald-900/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/50 flex items-center gap-0.5 text-[9px] font-bold transition-colors"
+                      title="Hoàn tác thao tác này"
+                    >
+                      <ArrowUturnLeftIcon className="w-2.5 h-2.5" />
+                      <span>Hoàn tác</span>
+                    </button>
+                  )}
                 </div>)}
 
               <div className={`text-[9px] ${msg.sender === 'user' ? 'text-indigo-200 text-right' : 'text-slate-500'}`}>
