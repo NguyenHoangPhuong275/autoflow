@@ -39,6 +39,8 @@ export interface AgentAction {
     range?: string;
     values?: any[][];
     formula?: string;
+    fillDown?: boolean;
+    endRow?: number;
     ascending?: boolean;
     frozenRows?: number;
     frozenCols?: number;

@@ -2,6 +2,7 @@ import type { AgentAction } from '@/core/ai/agentTypes';
 import type { DataRow } from '@/types';
 import type { ActionExecutionResult, ActionExecutionReport } from '@/core/ai/actionExecutionTypes';
 import { DESTRUCTIVE_ACTION_TYPES } from '@/core/ai/actionExecutionTypes';
+import { resolveTargetCell, generateFormulaRange } from '@/core/ai/formulaUtils';
 
 interface BatchUpdate {
     rowId: string;
@@ -377,18 +378,64 @@ export async function executeAgentActions(
                 const targetSheet = action.sheetTitle || activeSheetTitle;
                 const colKey = action.colKey || 'A1';
                 const headers = rows.length > 0 ? Object.keys(rows[0].data) : [];
-                const colIndex = headers.findIndex((h) => h.toLowerCase() === colKey.toLowerCase());
-                let cellRef = colKey;
-                if (colIndex >= 0) {
-                    const colLetter = String.fromCharCode(65 + colIndex);
-                    cellRef = `${colLetter}2`;
+                const targetInfo = resolveTargetCell(colKey, headers);
+
+                // Calculate start and end rows
+                const startRow = targetInfo.startRow;
+                let endRow = startRow;
+                if (action.endRow !== undefined && action.endRow >= startRow) {
+                    endRow = action.endRow;
+                } else if (action.fillDown) {
+                    // Row 1 is header, data rows are 2 .. rows.length + 1
+                    endRow = Math.max(startRow, rows.length + 1);
                 }
+
+                // Generate formula 2D matrix with relative reference adjustments
+                const fillResult = generateFormulaRange(
+                    action.formula,
+                    startRow,
+                    endRow,
+                    targetInfo.colLetter,
+                    action.fillDown ?? false
+                );
+
                 if (context.onUpdateRange) {
-                    context.onUpdateRange(targetSheet, cellRef, [[action.formula]]);
+                    context.onUpdateRange(targetSheet, fillResult.rangeA1, fillResult.values);
                 }
-                const msg = `Gán công thức ${action.formula} vào ô ${cellRef} trên "${targetSheet}"`;
+
+                // Update local rows if matched column exists in dataset
+                const matchedCol = targetInfo.colName || (targetInfo.colIndex < headers.length ? headers[targetInfo.colIndex] : undefined);
+                const affectedRowNumbers: number[] = [];
+
+                if (matchedCol) {
+                    fillResult.formulas.forEach((f, idx) => {
+                        const rowNum = startRow + idx;
+                        affectedRowNumbers.push(rowNum);
+                        const targetRow = rows.find((r) => r.rowNumber === rowNum);
+                        if (targetRow) {
+                            batchUpdates.push({
+                                rowId: targetRow.id,
+                                updatedData: { ...targetRow.data, [matchedCol]: f },
+                                colKey: matchedCol,
+                                newValue: f,
+                            });
+                        }
+                    });
+                } else {
+                    for (let r = startRow; r <= endRow; r++) {
+                        affectedRowNumbers.push(r);
+                    }
+                }
+
+                const msg = action.fillDown && fillResult.rowCount > 1
+                    ? `Gán và kéo công thức ${action.formula} xuống dải ${fillResult.rangeA1} (${fillResult.rowCount} hàng) trên "${targetSheet}"`
+                    : `Gán công thức ${action.formula} vào ô ${fillResult.rangeA1} trên "${targetSheet}"`;
+
                 summaries.push(msg);
-                results.push(makeResult(action, 'success', msg, { sheetTitle: targetSheet }));
+                results.push(makeResult(action, 'success', msg, {
+                    affectedRows: affectedRowNumbers,
+                    sheetTitle: targetSheet,
+                }));
             }
             else if (action.type === 'export_csv') {
                 try {

@@ -367,4 +367,13 @@ export class GoogleStructureService extends GoogleWriteService {
 
     return currentHeaders.filter((_, idx) => idx !== colIndex);
   }
+
+  public static async autoFillFormula(
+    spreadsheetId: string,
+    sheetTitle: string,
+    formulaValues: string[][],
+    rangeA1: string
+  ): Promise<void> {
+    await this.updateRangeValues(spreadsheetId, sheetTitle, rangeA1, formulaValues);
+  }
 }

@@ -77,10 +77,12 @@ export const AUTOFLOW_TOOLS: DeepSeekToolDefinition[] = [
             description: 'Ma trận 2D chứa các giá trị',
         },
     }, ['range', 'values'])),
-    tool('set_formula', 'Gán công thức tính toán Excel/Google Sheets (ví dụ =SUM(E2:E10), =C2*D2, =VLOOKUP(...)).', objectSchema({
+    tool('set_formula', 'Gán công thức tính toán Excel/Google Sheets (ví dụ =SUM(E2:E10), =C2*D2, =VLOOKUP(...)). Có thể tự động fill xuống toàn bộ cột.', objectSchema({
         sheetTitle: { type: 'string', description: 'Tên sheet' },
-        colKey: { type: 'string', description: 'Tên cột hoặc ô (ví dụ total hoặc E10)' },
+        colKey: { type: 'string', description: 'Tên cột hoặc ô (ví dụ total, E2, E10)' },
         formula: { type: 'string', description: 'Công thức toán học (bắt đầu bằng dấu =)' },
+        fillDown: { type: 'boolean', description: 'Nếu true: tự động điền/kéo công thức xuống toàn bộ các dòng dữ liệu bên dưới (tự động điều chỉnh hàng A2, A3...)' },
+        endRow: { type: 'integer', description: 'Dòng kết thúc tùy chọn (mặc định là dòng cuối cùng có dữ liệu)' },
     }, ['colKey', 'formula'])),
     tool('format_cells', 'Đổi Font chữ, Cỡ chữ, Đậm/Nghiêng, Màu chữ, Màu nền, Căn lề của hàng tiêu đề hoặc dải ô A1.', objectSchema({
         sheetTitle: { type: 'string', description: 'Tên sheet' },
