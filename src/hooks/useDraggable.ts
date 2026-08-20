@@ -1,4 +1,11 @@
-import { useRef, useCallback, type RefObject, type MouseEvent } from 'react';
+import { useRef, useCallback, useEffect, type RefObject, type MouseEvent } from 'react';
+
+const STORAGE_KEY = 'autoflow_pipeline_positions_v1';
+
+interface Position {
+  left: number;
+  top: number;
+}
 
 interface DragState {
   isDragging: boolean;
@@ -8,12 +15,40 @@ interface DragState {
   originTop: number;
 }
 
+function getStoredPositions(): Record<string, Position> {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePosition(id: string, pos: Position): void {
+  try {
+    const all = getStoredPositions();
+    all[id] = pos;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
+  } catch {
+    // Silently ignore storage quota or private mode errors
+  }
+}
+
+export function clearStoredPositions(): void {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+  } catch {
+    // Silently ignore
+  }
+}
+
 /**
- * Makes an element draggable within its parent container.
+ * Makes an element draggable within its parent container and persists its position across F5 reloads.
  * Returns event handlers to spread onto the target element.
  * Calls `onDragMove` on every frame so external state (e.g. beam paths) can update.
  */
 export function useDraggable(
+  id: string,
   ref: RefObject<HTMLElement>,
   containerRef: RefObject<HTMLElement>,
   onDragMove?: () => void
@@ -25,6 +60,23 @@ export function useDraggable(
     originLeft: 0,
     originTop: 0,
   });
+
+  // Restore saved position on mount
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !id) return;
+
+    const saved = getStoredPositions()[id];
+    if (saved && typeof saved.left === 'number' && typeof saved.top === 'number') {
+      el.style.position = 'relative';
+      el.style.left = `${saved.left}px`;
+      el.style.top = `${saved.top}px`;
+      // Notify parent to recompute beam paths
+      requestAnimationFrame(() => {
+        onDragMove?.();
+      });
+    }
+  }, [id, ref, onDragMove]);
 
   const handlePointerDown = useCallback(
     (e: MouseEvent) => {
@@ -38,7 +90,7 @@ export function useDraggable(
       const containerRect = container.getBoundingClientRect();
       const elRect = el.getBoundingClientRect();
 
-      // Ensure the element has position: relative/absolute so left/top work
+      // Ensure the element has position: relative so left/top work
       if (!el.style.position || el.style.position === 'static') {
         el.style.position = 'relative';
       }
@@ -58,6 +110,9 @@ export function useDraggable(
       el.style.zIndex = '50';
       el.style.transition = 'none';
 
+      let lastLeft = currentLeft;
+      let lastTop = currentTop;
+
       const handlePointerMove = (ev: PointerEvent) => {
         if (!stateRef.current.isDragging || !el) return;
 
@@ -67,7 +122,7 @@ export function useDraggable(
         let newLeft = stateRef.current.originLeft + dx;
         let newTop = stateRef.current.originTop + dy;
 
-        // Clamp within container
+        // Clamp within container boundaries
         const elCurrentRect = el.getBoundingClientRect();
         const elW = elCurrentRect.width;
         const elH = elCurrentRect.height;
@@ -80,6 +135,8 @@ export function useDraggable(
 
         el.style.left = `${newLeft}px`;
         el.style.top = `${newTop}px`;
+        lastLeft = newLeft;
+        lastTop = newTop;
 
         onDragMove?.();
       };
@@ -90,6 +147,12 @@ export function useDraggable(
           el.style.cursor = 'grab';
           el.style.zIndex = '10';
         }
+
+        // Persist final position to localStorage
+        if (id) {
+          savePosition(id, { left: lastLeft, top: lastTop });
+        }
+
         window.removeEventListener('pointermove', handlePointerMove);
         window.removeEventListener('pointerup', handlePointerUp);
       };
@@ -97,7 +160,7 @@ export function useDraggable(
       window.addEventListener('pointermove', handlePointerMove);
       window.addEventListener('pointerup', handlePointerUp);
     },
-    [ref, containerRef, onDragMove]
+    [id, ref, containerRef, onDragMove]
   );
 
   return {
