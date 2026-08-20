@@ -4,12 +4,15 @@ import { ArrowPathIcon as Loader2, ArrowTrendingUpIcon as TrendingUp, ChartBarIc
 import { DataRow } from '@/types';
 import { AiAgentService, ChatMessage, ChatMessageOption } from '@/core/services/aiAgentService';
 import { executeAgentActions } from '@/core/ai/executeAgentActions';
+import { buildModelFacingSummary } from '@/core/ai/actionExecutionTypes';
 import { GoogleSheetReader } from '@/core/parsers/googleSheetReader';
 import { SheetTabInfo } from '@/core/services/googleSyncService';
 import { useAgentDocuments } from '@/hooks/useAgentDocuments';
 import { useChatHistory } from '@/hooks/useChatHistory';
+import { useDestructiveActionQueue } from '@/hooks/useDestructiveActionQueue';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { TypingAnimation } from '@/components/ui/typing-animation';
+import { DestructiveActionDialog } from '@/components/chat/DestructiveActionDialog';
 interface AiCopilotChatProps {
     rows: DataRow[];
     sheetTabs?: SheetTabInfo[];
@@ -91,6 +94,7 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const { showDocModal, setShowDocModal, newDocName, setNewDocName, newDocContent, setNewDocContent, permittedDocs, toggleDocPermission, handleAddCustomDoc, } = useAgentDocuments(activeSheetTitle, rows.length);
+    const { pendingAction, requestConfirmation, confirmAction, cancelAction } = useDestructiveActionQueue();
     const messagesEndRef = useAutoScroll<HTMLDivElement>(true, [messages, isLoading]);
     const handleSendMessage = async (textToSend?: string) => {
         const query = textToSend || input;
@@ -116,7 +120,7 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
         try {
             const allTabs = sheetTabs.map((t) => t.title);
             const response = await AiAgentService.chatWithAgent(query.trim(), messages, rows, activeSheetTitle, allTabs, permittedDocs, allSheetHeaders);
-            const actionSummaries = executeAgentActions(response.actions ?? [], {
+            const { summaries: actionSummaries, report } = await executeAgentActions(response.actions ?? [], {
                 rows,
                 activeSheetTitle,
                 onUpdateHeaders,
@@ -148,18 +152,41 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
                 onClearLogs,
                 onChangeSpeed,
                 onFetchFromUrl,
+                requestDestructiveConfirmation: (action) => requestConfirmation(action, activeSheetTitle, rows.length),
             });
+
+            // Build action summary for UI display
+            let actionSummaryText: string | undefined;
+            if (report.totalActions > 0) {
+                const parts: string[] = [];
+                if (report.successCount > 0) parts.push(`${report.successCount} thành công`);
+                if (report.failedCount > 0) parts.push(`${report.failedCount} thất bại`);
+                if (report.cancelledCount > 0) parts.push(`${report.cancelledCount} đã hủy`);
+                actionSummaryText = `Đã thực thi ${report.totalActions} thao tác: ${parts.join(', ')}`;
+            }
+
             const aiMsg: ChatMessage = {
                 id: `ai-${Date.now()}`,
                 sender: 'ai',
                 text: sanitizeBotText(response.reply || 'Đã thực hiện toàn bộ yêu cầu của bạn.'),
                 timestamp: new Date().toLocaleTimeString('vi-VN', { hour12: false }),
-                actionSummary: actionSummaries.length > 0
+                actionSummary: actionSummaryText || (actionSummaries.length > 0
                     ? `Đã thực thi: ${actionSummaries.join(', ')}`
-                    : undefined,
+                    : undefined),
                 options: response.options,
             };
             setMessages((prev) => [...prev, aiMsg]);
+
+            // Append model-facing action result for next AI request context
+            if (report.totalActions > 0 && (report.failedCount > 0 || report.cancelledCount > 0)) {
+                const resultMsg: ChatMessage = {
+                    id: `action-result-${Date.now()}`,
+                    sender: 'system',
+                    text: buildModelFacingSummary(report),
+                    timestamp: new Date().toLocaleTimeString('vi-VN', { hour12: false }),
+                };
+                setMessages((prev) => [...prev, resultMsg]);
+            }
         }
         catch (err: any) {
             const errorMsg: ChatMessage = {
@@ -390,5 +417,13 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
             </div>
           </div>
         </div>)}
+
+      {pendingAction && (
+        <DestructiveActionDialog
+          pendingAction={pendingAction}
+          onConfirm={confirmAction}
+          onCancel={cancelAction}
+        />
+      )}
     </div>);
 };
