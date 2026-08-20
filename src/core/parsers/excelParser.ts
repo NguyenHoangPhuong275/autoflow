@@ -23,10 +23,14 @@ export class ExcelParser {
                     resolve(rows);
                 }
                 catch (err) {
-                    reject(err);
+                    console.error('[ExcelParser] Error parsing workbook sheet:', err);
+                    reject(err instanceof Error ? err : new Error(String(err)));
                 }
             };
-            reader.onerror = (error) => reject(error);
+            reader.onerror = (error) => {
+                console.error('[ExcelParser] FileReader error:', error);
+                reject(error);
+            };
             reader.readAsArrayBuffer(file);
         });
     }

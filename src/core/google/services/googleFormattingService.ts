@@ -44,7 +44,8 @@ export class GoogleFormattingService extends GoogleStructureService {
         backgroundColor: rgbToHex(format.backgroundColor),
         fontColor: rgbToHex(format.textFormat?.foregroundColor),
       };
-    } catch {
+    } catch (err) {
+      console.warn('[GoogleFormattingService] Failed to fetch sheet format:', err);
       return null;
     }
   }
@@ -211,7 +212,8 @@ export class GoogleFormattingService extends GoogleStructureService {
       );
       if (!targetSheet || !targetSheet.charts) return [];
       return targetSheet.charts.map((c: any) => c.chartId).filter((id: any) => id !== undefined);
-    } catch {
+    } catch (err) {
+      console.warn('[GoogleFormattingService] Failed to fetch sheet chart IDs:', err);
       return [];
     }
   }
@@ -401,7 +403,8 @@ export class GoogleFormattingService extends GoogleStructureService {
       const data = await res.json();
       const row = data.values?.[0] || [];
       return row.map((c: any) => String(c || '').trim()).filter(Boolean);
-    } catch {
+    } catch (err) {
+      console.warn('[GoogleFormattingService] Failed to fetch sheet header names:', err);
       return [];
     }
   }

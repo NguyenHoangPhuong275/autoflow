@@ -36,7 +36,8 @@ function loadFromStorage(): ChatMessage[] {
     if (validated.length === 0) return [createWelcomeMessage()];
 
     return validated.slice(-MAX_MESSAGES);
-  } catch {
+  } catch (err) {
+    console.warn('[useChatHistory] Failed to parse chat history from storage:', err);
     return [createWelcomeMessage()];
   }
 }
@@ -53,8 +54,8 @@ function saveToStorage(messages: ChatMessage[]): void {
       ...(msg.options && msg.options.length > 0 ? { options: msg.options } : {}),
     }));
     localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave));
-  } catch {
-    // Storage full or unavailable — silently ignore
+  } catch (err) {
+    console.warn('[useChatHistory] Failed to save chat history to storage:', err);
   }
 }
 

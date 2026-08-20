@@ -47,7 +47,8 @@ export function parseToolCall(toolCall: DeepSeekToolCall): AgentAction | null {
         const action = { type: toolCall.function.name, ...args };
         return isAgentAction(action) ? action : null;
     }
-    catch {
+    catch (err) {
+        console.warn(`[agentActionParser] Failed to parse tool call arguments for "${toolCall?.function?.name}":`, err);
         return null;
     }
 }

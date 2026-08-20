@@ -148,6 +148,7 @@ export class AutomationEngine {
             }
             catch (error: unknown) {
                 const message = getErrorMessage(error);
+                console.error(`[AutomationEngine] Row #${row.rowNumber} pipeline execution failed:`, error);
                 const executionTime = Date.now() - startTime;
                 row.executionTimeMs = executionTime;
                 row.status = 'failed';

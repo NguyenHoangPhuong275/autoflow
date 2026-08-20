@@ -203,7 +203,8 @@ export class GoogleSheetReader {
         discoveredTabs,
       };
     } catch (err: any) {
-      throw new Error(err.message || 'Lỗi không xác định khi kết nối Google Sheets.');
+      console.error('[GoogleSheetReader] Error fetching Google Sheet:', err);
+      throw err instanceof Error ? err : new Error(String(err));
     }
   }
 }

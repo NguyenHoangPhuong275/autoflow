@@ -468,13 +468,14 @@ export async function executeAgentActions(
                         results.push(makeResult(action, 'success', msg));
                     }
                 } catch (e: any) {
-                    console.warn('Export CSV failed:', e);
+                    console.warn('[executeAgentActions] Export CSV failed:', e);
                     const msg = 'Lỗi khi xuất CSV.';
                     summaries.push(msg);
                     results.push(makeResult(action, 'failed', msg, { error: e.message }));
                 }
             }
         } catch (err: any) {
+            console.error(`[executeAgentActions] Error executing action "${action.type}":`, err);
             const msg = `Lỗi thực thi ${action.type}: ${err.message}`;
             summaries.push(msg);
             results.push(makeResult(action, 'failed', msg, {

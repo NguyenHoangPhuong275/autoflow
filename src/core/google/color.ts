@@ -38,7 +38,7 @@ export function detectColorToGoogleRgb(color: string): GoogleRgbColor {
             }
         }
         catch (error) {
-            console.warn('Canvas color auto-detect error:', error);
+            console.warn('[GoogleColor] Canvas color auto-detect error:', error);
         }
     }
     let hex = targetColor.replace(/[^0-9a-f]/gi, '');

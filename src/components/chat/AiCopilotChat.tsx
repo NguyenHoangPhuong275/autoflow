@@ -155,6 +155,7 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
             };
             setMessages((prev) => [...prev, undoMsg]);
         } catch (err: any) {
+            console.error('[AiCopilotChat] Error during undo execution:', err);
             const errorMsg: ChatMessage = {
                 id: `undo-err-${Date.now()}`,
                 sender: 'system',
@@ -289,6 +290,7 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
             }
         }
         catch (err: any) {
+            console.error('[AiCopilotChat] Error processing AI chat turn:', err);
             const errorMsg: ChatMessage = {
                 id: `err-${Date.now()}`,
                 sender: 'system',

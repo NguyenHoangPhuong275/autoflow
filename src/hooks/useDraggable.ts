@@ -19,7 +19,8 @@ function getStoredPositions(): Record<string, Position> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
-  } catch {
+  } catch (err) {
+    console.warn('[useDraggable] Failed to load stored positions:', err);
     return {};
   }
 }
@@ -29,16 +30,16 @@ function savePosition(id: string, pos: Position): void {
     const all = getStoredPositions();
     all[id] = pos;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-  } catch {
-    // Silently ignore storage quota or private mode errors
+  } catch (err) {
+    console.warn('[useDraggable] Failed to save position to localStorage:', err);
   }
 }
 
 export function clearStoredPositions(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
-  } catch {
-    // Silently ignore
+  } catch (err) {
+    console.warn('[useDraggable] Failed to clear stored positions:', err);
   }
 }
 

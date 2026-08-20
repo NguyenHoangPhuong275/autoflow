@@ -117,6 +117,7 @@ export function useAutomation() {
             }
         }
         catch (err: any) {
+            console.error('[useAutomation] Error fetching sheet from URL:', err);
             appendLog(`err-${Date.now()}`, 'error', `Lỗi đọc Google Sheet: ${err.message}`);
             setStage('ready');
         }
@@ -153,6 +154,7 @@ export function useAutomation() {
             appendLog(`file-${Date.now()}`, 'success', `Đọc tệp thành công: ${file.name} (${parsedRows.length} hàng)`);
         }
         catch (err: any) {
+            console.error('[useAutomation] Error parsing local file:', err);
             appendLog(`err-${Date.now()}`, 'error', `Lỗi đọc tệp: ${err.message}`);
         }
         finally {
