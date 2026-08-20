@@ -11,6 +11,7 @@ import { useAgentDocuments } from '@/hooks/useAgentDocuments';
 import { useChatHistory } from '@/hooks/useChatHistory';
 import { useDestructiveActionQueue } from '@/hooks/useDestructiveActionQueue';
 import { useAutoScroll } from '@/hooks/useAutoScroll';
+import { AGENT_BRAND } from '@/core/ai/agentBrand';
 import { TypingAnimation } from '@/components/ui/typing-animation';
 import { DestructiveActionDialog } from '@/components/chat/DestructiveActionDialog';
 interface AiCopilotChatProps {
@@ -257,14 +258,14 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
       <div className="h-9 px-3 bg-[#0b101c] border-b border-[#1a2336] flex items-center justify-between shrink-0 whitespace-nowrap">
         <div className="flex items-center gap-1.5 font-bold text-slate-200">
           <BrainCircuit className="w-3.5 h-3.5 text-cyan-400"/>
-          <span>DEEPSEEK AI AUTONOMOUS</span>
+          <span>{AGENT_BRAND.headerTitle}</span>
         </div>
 
         <div className="flex items-center gap-1.5">
 
           <div className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/90 text-emerald-300 border border-emerald-500/60 flex items-center gap-1 shadow-sm">
             <ShieldCheck className="w-3 h-3 text-emerald-400"/>
-            <span>FULL ROOT ACCESS ACTIVE</span>
+            <span>{AGENT_BRAND.statusLabel}</span>
           </div>
 
           <button onClick={() => setShowDocModal(true)} className="p-1 rounded bg-[#090d16] hover:bg-[#161f32] text-slate-400 hover:text-[var(--text-primary)] border border-[#1a2336]" title="Cấp quyền thêm tài liệu cho AI">

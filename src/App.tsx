@@ -7,6 +7,7 @@ import { ControlBar } from '@/components/pipeline/ControlBar';
 import { DataGrid } from '@/components/pipeline/DataGrid';
 import { TerminalLogs } from '@/components/pipeline/TerminalLogs';
 import { AiCopilotChat } from '@/components/chat/AiCopilotChat';
+import { AGENT_BRAND } from '@/core/ai/agentBrand';
 import { CommandLineIcon as TerminalIcon, CpuChipIcon as Bot, } from '@heroicons/react/24/outline';
 export const App: React.FC = () => {
     const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'terminal'>('chat');
@@ -43,7 +44,7 @@ export const App: React.FC = () => {
             ? 'bg-indigo-600 text-white'
             : 'text-slate-400 hover:text-slate-200'}`}>
                   <Bot className="w-3 h-3 text-cyan-400"/>
-                  <span>AI Copilot (DeepSeek Full Access)</span>
+                  <span>{AGENT_BRAND.tabLabel}</span>
                 </button>
                 <button onClick={() => setRightPanelTab('terminal')} className={`px-2.5 py-0.5 rounded flex items-center gap-1.5 font-bold transition-colors ${rightPanelTab === 'terminal'
             ? 'bg-indigo-600 text-white'
