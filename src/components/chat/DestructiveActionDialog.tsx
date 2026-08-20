@@ -14,8 +14,8 @@ export const DestructiveActionDialog: React.FC<DestructiveActionDialogProps> = (
   onCancel,
 }) => {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-      <div className="w-full max-w-md bg-[#0e1422] border border-rose-800/50 rounded-xl p-0 text-slate-100 shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm">
+      <div className="w-[92vw] max-w-md bg-[#0e1422] border border-rose-800/50 rounded-xl p-0 text-slate-100 shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 bg-rose-950/40 border-b border-rose-800/50">
           <div className="flex items-center gap-2 text-rose-300 font-bold text-sm">

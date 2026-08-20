@@ -508,8 +508,8 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
         </button>
       </div>
 
-      {showDocModal && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
-          <div className="w-full max-w-md bg-[#0e1422] border border-[#1a2336] rounded-xl p-4 space-y-3 text-slate-100">
+      {showDocModal && (<div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm">
+          <div className="w-[92vw] max-w-md bg-[#0e1422] border border-[#1a2336] rounded-xl p-3.5 sm:p-4 space-y-3 text-slate-100">
             <div className="flex items-center justify-between border-b border-[#1a2336] pb-2 font-bold text-sm">
               <div className="flex items-center gap-1.5 text-cyan-400">
                 <FileText className="w-4 h-4"/>

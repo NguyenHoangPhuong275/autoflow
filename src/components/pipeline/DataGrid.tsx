@@ -84,7 +84,7 @@ export const DataGrid: React.FC<DataGridProps> = ({ rows, sheetTabs = [], allShe
         </div>
       </header>
 
-      <div className="flex min-h-10 shrink-0 items-center justify-between gap-3 border-b border-[#1a2336] bg-[#090d16] px-3 py-1.5">
+      <div className="flex min-h-10 shrink-0 flex-wrap sm:flex-nowrap items-center justify-between gap-2 sm:gap-3 border-b border-[#1a2336] bg-[#090d16] px-2.5 sm:px-3 py-1.5">
         <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {sheetTabs.length > 0 ? sheetTabs.map((tab) => {
             const isActive = tab.title === activeSheetTitle;
@@ -97,13 +97,13 @@ export const DataGrid: React.FC<DataGridProps> = ({ rows, sheetTabs = [], allShe
         }) : (<span className="text-[9px] text-slate-600">Chưa có trang tính</span>)}
         </div>
 
-        <div className="flex shrink-0 items-center gap-1.5">
-          <label className="relative block">
+        <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto max-w-full">
+          <label className="relative block shrink-0">
             <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-500"/>
-            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm trong bảng" className="h-6 w-32 rounded-md border border-[#1a2336] bg-[#070a12] pl-6 pr-2 text-[9px] text-[var(--text-primary)] outline-none transition-all placeholder:text-slate-600 focus:w-40 focus:border-indigo-500"/>
+            <input type="search" value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Tìm kiếm" className="h-6 w-24 sm:w-32 rounded-md border border-[#1a2336] bg-[#070a12] pl-6 pr-2 text-[9px] text-[var(--text-primary)] outline-none transition-all placeholder:text-slate-600 focus:w-32 sm:focus:w-40 focus:border-indigo-500"/>
           </label>
 
-          <div className="flex items-center gap-0.5 rounded-md border border-[#1a2336] bg-[#070a12] p-0.5">
+          <div className="flex items-center gap-0.5 rounded-md border border-[#1a2336] bg-[#070a12] p-0.5 shrink-0">
             <FunnelIcon className="mx-1 h-3 w-3 text-slate-500"/>
             {STATUS_FILTERS.map((filter) => (<button key={filter.value} onClick={() => setStatusFilter(filter.value)} aria-pressed={statusFilter === filter.value} className={`h-5 rounded px-1.5 text-[9px] transition-colors ${statusFilter === filter.value
                 ? 'bg-indigo-600 font-semibold text-white'
