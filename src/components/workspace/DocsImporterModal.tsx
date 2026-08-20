@@ -6,6 +6,7 @@ import {
   ArrowDownTrayIcon as Download,
 } from '@heroicons/react/24/outline';
 import { GoogleDocsService, GoogleDocContent } from '@/core/google/services/googleDocsService';
+import { getErrorMessage } from '@/core/utils/errors';
 
 interface DocsImporterModalProps {
   isOpen: boolean;
@@ -32,9 +33,10 @@ export const DocsImporterModal: React.FC<DocsImporterModalProps> = ({
     try {
       const data = await GoogleDocsService.fetchDocument(docInput);
       setDocData(data);
-    } catch (err: any) {
-      console.error('[DocsImporterModal] Error fetching document:', err);
-      setError(err.message || 'Không thể tải nội dung Google Docs.');
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Không thể tải nội dung Google Docs.');
+      console.error(message);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -50,7 +52,6 @@ export const DocsImporterModal: React.FC<DocsImporterModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 font-mono">
       <div className="w-full max-w-2xl rounded-xl border border-[#1a2336] bg-[#0b0f19] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a2336] bg-[#080c14]">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
@@ -69,7 +70,6 @@ export const DocsImporterModal: React.FC<DocsImporterModalProps> = ({
           </button>
         </div>
 
-        {/* Input Bar */}
         <div className="p-3 border-b border-[#1a2336] bg-[#070a12] flex gap-2">
           <input
             type="text"
@@ -89,7 +89,6 @@ export const DocsImporterModal: React.FC<DocsImporterModalProps> = ({
           </button>
         </div>
 
-        {/* Content Preview */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {error && (
             <div className="p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400 text-xs">

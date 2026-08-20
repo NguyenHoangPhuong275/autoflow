@@ -16,11 +16,6 @@ interface ErrorBoundaryState {
 
 const IS_DEV = import.meta.env.DEV;
 
-/**
- * AppErrorBoundary — Top-level Error Boundary for AutoFlow.
- * Catches unhandled React component exceptions, guarantees errors/stack traces
- * are logged for debugging without swallowing, and provides a resilient recovery UI.
- */
 export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
     super(props);
@@ -38,10 +33,8 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    // Save errorInfo to state for debugging display
     this.setState({ errorInfo });
 
-    // Explicit error logging without swallowing
     console.error(
       '[AppErrorBoundary] Uncaught component exception:',
       '\nMessage:', error.message,
@@ -49,7 +42,6 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
       '\nComponent Stack:', errorInfo.componentStack
     );
 
-    // Call optional custom error handler if provided
     if (this.props.onError) {
       try {
         this.props.onError(error, errorInfo);
@@ -142,7 +134,6 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
               boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)',
             }}
           >
-            {/* Warning Icon */}
             <div
               style={{
                 width: 52,
@@ -185,7 +176,6 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
               Dữ liệu của bạn không bị mất, bạn có thể thử khôi phục hoặc tải lại trang.
             </p>
 
-            {/* Error Detail Panel */}
             {error && (
               <div
                 style={{
@@ -262,7 +252,6 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
               </div>
             )}
 
-            {/* Action Buttons */}
             <div
               style={{
                 display: 'flex',

@@ -14,7 +14,7 @@ interface DataGridProps {
     isLoading?: boolean;
     isBusy?: boolean;
     onSelectSheetTab?: (sheetTitle: string) => void;
-    onUpdateRow?: (rowId: string, updatedData: Record<string, any>, colKey?: string, newValue?: any) => void;
+    onUpdateRow?: (rowId: string, updatedData: Record<string, unknown>, colKey?: string, newValue?: unknown) => void;
     onDeleteRow?: (rowId: string) => void;
     onAddRow?: () => void;
 }

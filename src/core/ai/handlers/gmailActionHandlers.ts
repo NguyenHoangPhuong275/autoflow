@@ -10,16 +10,14 @@ function cleanSender(raw: string): string {
 
 function formatDate(rawDate: string): string {
   if (!rawDate) return '';
-  try {
-    const d = new Date(rawDate);
-    if (!isNaN(d.getTime())) {
-      const day = d.getDate().toString().padStart(2, '0');
-      const month = (d.getMonth() + 1).toString().padStart(2, '0');
-      const hours = d.getHours().toString().padStart(2, '0');
-      const mins = d.getMinutes().toString().padStart(2, '0');
-      return `${day}/${month} ${hours}:${mins}`;
-    }
-  } catch {}
+  const date = new Date(rawDate);
+  if (!Number.isNaN(date.getTime())) {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const hours = date.getHours().toString().padStart(2, '0');
+    const minutes = date.getMinutes().toString().padStart(2, '0');
+    return `${day}/${month} ${hours}:${minutes}`;
+  }
   return rawDate.slice(0, 16);
 }
 
@@ -52,7 +50,6 @@ export async function executeGmailAction(
 
     const isOtpQuery = Boolean(action.query && /\b(otp|m[aã]|code|x[aá]c th[uự]c|x[aá]c minh|verification|auth)\b/i.test(action.query));
 
-    // If query is specifically for OTP/code or exactly 1 email
     if (displayList.length === 1 || isOtpQuery) {
       const e = displayList[0];
       const sender = cleanSender(e.from);

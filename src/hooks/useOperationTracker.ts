@@ -17,11 +17,6 @@ interface TrackedOperation {
   startedAt: number;
 }
 
-/**
- * Tracks multiple concurrent Google API operations.
- * Each operation is identified by a unique ID and cleaned up in `finally`.
- * Two parallel requests won't prematurely cancel the loading state.
- */
 export function useOperationTracker() {
   const [operations, setOperations] = useState<TrackedOperation[]>([]);
   const counterRef = useRef(0);
@@ -36,10 +31,6 @@ export function useOperationTracker() {
     setOperations((prev) => prev.filter((op) => op.id !== id));
   }, []);
 
-  /**
-   * Wrap an async operation with automatic tracking.
-   * The operation ID is cleaned up in `finally` regardless of success/failure.
-   */
   const trackOperation = useCallback(
     async <T>(label: OperationLabel, fn: () => Promise<T>): Promise<T> => {
       const id = startOperation(label);
@@ -56,7 +47,6 @@ export function useOperationTracker() {
 
   const pendingOperations = operations.map((op) => op.label);
 
-  /** Human-readable label for the current operations */
   const operationSummary: string | null = isMutating
     ? `Đang xử lý: ${[...new Set(pendingOperations)].map(labelToVi).join(', ')}...`
     : null;

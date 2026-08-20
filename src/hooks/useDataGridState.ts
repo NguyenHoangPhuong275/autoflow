@@ -5,7 +5,7 @@ interface UseDataGridStateOptions {
     rows: DataRow[];
     activeSheetTitle: string;
     allSheetHeaders: Record<string, string[]>;
-    onUpdateRow?: (rowId: string, updatedData: Record<string, any>, colKey?: string, newValue?: any) => void;
+    onUpdateRow?: (rowId: string, updatedData: Record<string, unknown>, colKey?: string, newValue?: unknown) => void;
 }
 export function useDataGridState({ rows, activeSheetTitle, allSheetHeaders, onUpdateRow, }: UseDataGridStateOptions) {
     const [searchTerm, setSearchTerm] = useState('');

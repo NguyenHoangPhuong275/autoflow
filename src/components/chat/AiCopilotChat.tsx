@@ -16,15 +16,15 @@ import {
   ExclamationCircleIcon as CircleAlert,
   MinusCircleIcon as Square,
   PaperAirplaneIcon as Send,
-  PlusCircleIcon as PackagePlus,
   ShieldCheckIcon as ShieldCheck,
   SparklesIcon as Sparkles,
   UserIcon as User,
   XMarkIcon as X,
 } from '@heroicons/react/24/outline';
 import { DataRow } from '@/types';
+import type { PermittedDocument, SheetDataIndex } from '@/core/ai/agentTypes';
 import { AiAgentService, ChatMessage, ChatMessageOption } from '@/core/services/aiAgentService';
-import { executeAgentActions } from '@/core/ai/executeAgentActions';
+import { executeAgentActions, type CellFormatOptions } from '@/core/ai/executeAgentActions';
 import { buildModelFacingSummary } from '@/core/ai/actionExecutionTypes';
 import { createInverseActions } from '@/core/undo/createInverseActions';
 import type { ActionSnapshot } from '@/core/undo/undoTypes';
@@ -38,18 +38,21 @@ import { useAutoScroll } from '@/hooks/useAutoScroll';
 import { AGENT_BRAND } from '@/core/ai/agentBrand';
 import { TypingAnimation } from '@/components/ui/typing-animation';
 import { DestructiveActionDialog } from '@/components/chat/DestructiveActionDialog';
+import { getErrorMessage } from '@/core/utils/errors';
 interface AiCopilotChatProps {
     rows: DataRow[];
     sheetTabs?: SheetTabInfo[];
     allSheetHeaders?: Record<string, string[]>;
+    allSheetRows?: SheetDataIndex;
+    externalDocuments?: PermittedDocument[];
     activeSheetTitle: string;
     onUpdateHeaders?: (sheetTitle: string, newHeaders: string[]) => void;
     onAddColumn?: (sheetTitle: string, columnName: string) => void;
     onDeleteColumn?: (sheetTitle: string, colKey: string) => void;
     onFreezeRowsCols?: (sheetTitle: string, frozenRows?: number, frozenCols?: number) => void;
     onSortRange?: (sheetTitle: string, colKey: string, ascending?: boolean) => void;
-    onUpdateRange?: (sheetTitle: string, range: string, values: any[][]) => void;
-    onFormatCells?: (sheetTitle: string, rangeA1?: string, options?: any) => void;
+    onUpdateRange?: (sheetTitle: string, range: string, values: unknown[][]) => void;
+    onFormatCells?: (sheetTitle: string, rangeA1?: string, options?: CellFormatOptions) => void;
     onAutoResizeColumns?: (sheetTitle?: string, startCol?: number, endCol?: number) => void;
     onSetColumnWidth?: (sheetTitle?: string, pixelSize?: number, startCol?: number, endCol?: number) => void;
     onAddChart?: (sheetTitle: string, chartType?: 'COLUMN' | 'BAR' | 'LINE' | 'PIE', title?: string, domainColIndex?: number, seriesColIndex?: number, rowCount?: number, rowIndexOffset?: number) => void;
@@ -58,15 +61,15 @@ interface AiCopilotChatProps {
     onDeleteSheet?: (sheetTitle: string) => void;
     onDuplicateSheet?: (sourceTitle: string, newTitle?: string) => void;
     onRenameSheet?: (oldTitle: string, newTitle: string) => void;
-    onUpdateRow: (rowId: string, updatedData: Record<string, any>, colKey?: string, newValue?: any) => void;
+    onUpdateRow: (rowId: string, updatedData: Record<string, unknown>, colKey?: string, newValue?: unknown) => void;
     onBatchUpdateRows?: (updates: Array<{
         rowId: string;
-        updatedData: Record<string, any>;
+        updatedData: Record<string, unknown>;
         colKey?: string;
-        newValue?: any;
+        newValue?: unknown;
     }>) => void;
     onBatchDeleteRows?: (rowIds: string[]) => void;
-    onAddRow: (customData?: Record<string, any>) => void;
+    onAddRow: (customData?: Record<string, unknown>) => void;
     onDeleteRow: (rowId: string) => void;
     onClearSheet?: (sheetTitle?: string) => void;
     onSelectSheetTab?: (sheetTitle: string) => void;
@@ -95,19 +98,14 @@ const QUICK_ACTIONS = [
         icon: FileDoc,
     },
     {
-        label: 'Thống kê tồn kho & giá',
-        prompt: 'Thống kê tồn kho & giá',
+        label: 'Phân tích nguồn liên quan',
+        prompt: 'Tự tìm các nguồn dữ liệu liên quan đến chủ đề tôi nêu và tổng hợp thông tin chính',
         icon: BarChart3,
     },
     {
         label: 'Đổi tên cột camelCase',
         prompt: 'thay đổi tên các cột ở trong sheet hiện tại theo format: aB (camelCase)',
         icon: TrendingUp,
-    },
-    {
-        label: 'Thêm sản phẩm VIP',
-        prompt: 'Thêm sản phẩm GPT VIP giá 100k',
-        icon: PackagePlus,
     },
 ] as const;
 function sanitizeBotText(text: string): string {
@@ -118,11 +116,11 @@ function sanitizeBotText(text: string): string {
         .replace(/_{2}([^_\n]+)_{2}/g, '$1')
         .trim();
 }
-export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = [], allSheetHeaders = {}, activeSheetTitle, onUpdateHeaders, onAddColumn, onDeleteColumn, onFreezeRowsCols, onSortRange, onUpdateRange, onFormatCells, onAutoResizeColumns, onSetColumnWidth, onAddChart, onClearCharts, onCreateSheet, onDeleteSheet, onDuplicateSheet, onRenameSheet, onUpdateRow, onBatchUpdateRows, onBatchDeleteRows, onAddRow, onDeleteRow, onClearSheet, onSelectSheetTab, onStartPipeline, onPausePipeline, onResumePipeline, onResetPipeline, onClearLogs, onChangeSpeed, onFetchFromUrl, }) => {
+export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = [], allSheetHeaders = {}, allSheetRows = {}, externalDocuments = [], activeSheetTitle, onUpdateHeaders, onAddColumn, onDeleteColumn, onFreezeRowsCols, onSortRange, onUpdateRange, onFormatCells, onAutoResizeColumns, onSetColumnWidth, onAddChart, onClearCharts, onCreateSheet, onDeleteSheet, onDuplicateSheet, onRenameSheet, onUpdateRow, onBatchUpdateRows, onBatchDeleteRows, onAddRow, onDeleteRow, onClearSheet, onSelectSheetTab, onStartPipeline, onPausePipeline, onResumePipeline, onResetPipeline, onClearLogs, onChangeSpeed, onFetchFromUrl, }) => {
     const { messages, setMessages, clearHistory } = useChatHistory();
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const { showDocModal, setShowDocModal, newDocName, setNewDocName, newDocContent, setNewDocContent, permittedDocs, toggleDocPermission, handleAddCustomDoc, } = useAgentDocuments(activeSheetTitle, rows.length);
+    const { showDocModal, setShowDocModal, newDocName, setNewDocName, newDocContent, setNewDocContent, permittedDocs, toggleDocPermission, handleAddCustomDoc, } = useAgentDocuments(externalDocuments);
     const { pendingAction, requestConfirmation, confirmAction, cancelAction } = useDestructiveActionQueue();
     const { undoStack, canUndo, pushTransaction, popTransaction } = useUndoStack();
     const messagesEndRef = useAutoScroll<HTMLDivElement>(true, [messages, isLoading]);
@@ -179,12 +177,13 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
                 timestamp: new Date().toLocaleTimeString('vi-VN', { hour12: false }),
             };
             setMessages((prev) => [...prev, undoMsg]);
-        } catch (err: any) {
-            console.error('[AiCopilotChat] Error during undo execution:', err);
+        } catch (error: unknown) {
+            const message = getErrorMessage(error);
+            console.error(`Lỗi hoàn tác: ${message}`);
             const errorMsg: ChatMessage = {
                 id: `undo-err-${Date.now()}`,
                 sender: 'system',
-                text: `❌ Lỗi khi hoàn tác: ${err.message}`,
+                text: `❌ Lỗi khi hoàn tác: ${message}`,
                 timestamp: new Date().toLocaleTimeString('vi-VN', { hour12: false }),
             };
             setMessages((prev) => [...prev, errorMsg]);
@@ -215,7 +214,6 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
             }
         }
         try {
-            // Snapshot before executing actions for undo/rollback capability
             const snapshot: ActionSnapshot = {
                 sheetTitle: activeSheetTitle,
                 rows: rows.map((r) => ({ ...r, data: { ...r.data } })),
@@ -225,7 +223,7 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
             };
 
             const allTabs = sheetTabs.map((t) => t.title);
-            const response = await AiAgentService.chatWithAgent(query.trim(), messages, rows, activeSheetTitle, allTabs, permittedDocs, allSheetHeaders);
+            const response = await AiAgentService.chatWithAgent(query.trim(), messages, rows, activeSheetTitle, allTabs, permittedDocs, allSheetHeaders, allSheetRows);
             const { summaries: actionSummaries, report } = await executeAgentActions(response.actions ?? [], {
                 rows,
                 activeSheetTitle,
@@ -261,7 +259,6 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
                 requestDestructiveConfirmation: (action) => requestConfirmation(action, activeSheetTitle, rows.length),
             });
 
-            // Build action summary for UI display
             let actionSummaryText: string | undefined;
             if (report.totalActions > 0) {
                 const parts: string[] = [];
@@ -271,7 +268,6 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
                 actionSummaryText = `Đã thực thi ${report.totalActions} thao tác: ${parts.join(', ')}`;
             }
 
-            // Record transaction for undo stack if actions succeeded
             if (report.successCount > 0) {
                 const succeededActions = (response.actions ?? []).filter((_, idx) => report.results[idx]?.status === 'success');
                 if (succeededActions.length > 0) {
@@ -291,7 +287,6 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
                 }
             }
 
-            // Extract detailed informational messages from executed actions (e.g. Gmail list, Drive files, Docs text)
             const informationalResults = report.results
                 .filter((r) => r.status === 'success' && r.message)
                 .map((r) => r.message);
@@ -323,7 +318,6 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
             };
             setMessages((prev) => [...prev, aiMsg]);
 
-            // Append model-facing action result for next AI request context
             if (report.totalActions > 0 && (report.failedCount > 0 || report.cancelledCount > 0)) {
                 const resultMsg: ChatMessage = {
                     id: `action-result-${Date.now()}`,
@@ -334,12 +328,13 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
                 setMessages((prev) => [...prev, resultMsg]);
             }
         }
-        catch (err: any) {
-            console.error('[AiCopilotChat] Error processing AI chat turn:', err);
+        catch (error: unknown) {
+            const message = getErrorMessage(error);
+            console.error(`Lỗi xử lý AI: ${message}`);
             const errorMsg: ChatMessage = {
                 id: `err-${Date.now()}`,
                 sender: 'system',
-                text: `Lỗi xử lý AI: ${err.message}`,
+                text: `Lỗi xử lý AI: ${message}`,
                 timestamp: new Date().toLocaleTimeString('vi-VN', { hour12: false }),
             };
             setMessages((prev) => [...prev, errorMsg]);
@@ -574,7 +569,7 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
       </div>
 
       <div className="p-2 bg-[#0b101c] border-t border-[#1a2336] flex items-center gap-1.5 shrink-0">
-        <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Ra lệnh: 'Đổi tên cột Orders sang camelCase', 'Xóa p5 p6', 'Sắp xếp theo giá'..." className="flex-1 bg-[#070a12] border border-[#1a2336] rounded-md px-2.5 py-1.5 text-[11px] text-[var(--text-primary)] placeholder-slate-600 focus:outline-none focus:border-indigo-500"/>
+        <input type="text" value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={handleKeyDown} placeholder="Hỏi hoặc ra lệnh theo dữ liệu bạn đang quản lý..." className="flex-1 bg-[#070a12] border border-[#1a2336] rounded-md px-2.5 py-1.5 text-[11px] text-[var(--text-primary)] placeholder-slate-600 focus:outline-none focus:border-indigo-500"/>
         <button onClick={() => handleSendMessage()} disabled={isLoading || !input.trim()} className="p-1.5 rounded-md bg-indigo-600 hover:bg-indigo-500 text-white disabled:opacity-40 transition-colors shrink-0">
           {isLoading ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}
         </button>

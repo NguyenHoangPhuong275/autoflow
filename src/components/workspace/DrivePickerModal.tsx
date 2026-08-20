@@ -8,6 +8,7 @@ import {
   FolderIcon as Folder,
 } from '@heroicons/react/24/outline';
 import { GoogleDriveService, DriveFileInfo } from '@/core/google/services/googleDriveService';
+import { getErrorMessage } from '@/core/utils/errors';
 
 interface DrivePickerModalProps {
   isOpen: boolean;
@@ -47,9 +48,10 @@ export const DrivePickerModal: React.FC<DrivePickerModalProps> = ({
 
       const list = await GoogleDriveService.listFiles({ query: q, pageSize: 25 });
       setFiles(list);
-    } catch (err: any) {
-      console.error('[DrivePickerModal] Error fetching drive files:', err);
-      setError(err.message || 'Không thể tải danh sách tệp Google Drive.');
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Không thể tải danh sách tệp Google Drive.');
+      console.error(message);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +81,6 @@ export const DrivePickerModal: React.FC<DrivePickerModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 font-mono">
       <div className="w-full max-w-2xl rounded-xl border border-[#1a2336] bg-[#0b0f19] shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a2336] bg-[#080c14]">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/30 text-blue-400">
@@ -98,7 +99,6 @@ export const DrivePickerModal: React.FC<DrivePickerModalProps> = ({
           </button>
         </div>
 
-        {/* Search & Filter bar */}
         <div className="p-3 border-b border-[#1a2336] bg-[#070a12] flex flex-wrap gap-2 items-center justify-between">
           <div className="flex-1 min-w-[200px] flex items-center bg-[#0e1422] rounded-lg border border-[#1a2336] px-2.5 py-1.5 focus-within:border-blue-500">
             <Search className="w-3.5 h-3.5 text-slate-500 mr-2 shrink-0" />
@@ -153,7 +153,6 @@ export const DrivePickerModal: React.FC<DrivePickerModalProps> = ({
           </div>
         </div>
 
-        {/* File List */}
         <div className="flex-1 overflow-y-auto p-3 space-y-1.5">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-2">

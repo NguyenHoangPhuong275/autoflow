@@ -1,4 +1,5 @@
 import { APP_CONFIG } from '@/core/config';
+import { readJson } from '@/core/utils/errors';
 export interface DeepSeekMessage {
     role: 'system' | 'user' | 'assistant';
     content: string;
@@ -56,7 +57,7 @@ export class DeepSeekService {
             headers,
             body: JSON.stringify(payload),
         });
-        const data = await response.json().catch(() => ({})) as DeepSeekApiResponse;
+        const data = await readJson<DeepSeekApiResponse>(response, {});
         if (!response.ok) {
             throw new Error(data.error?.message || `Lỗi DeepSeek API (HTTP ${response.status})`);
         }

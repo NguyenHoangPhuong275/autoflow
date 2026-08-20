@@ -40,7 +40,6 @@ export const ControlBar: React.FC<ControlBarProps> = ({
 
   return (
     <div className="min-h-9 px-2 sm:px-3 py-1.5 panel-card rounded-lg flex flex-wrap items-center justify-between gap-2 shrink-0 text-xs font-mono">
-      {/* URL Input */}
       <div className="flex-1 min-w-[240px] flex items-center bg-[#070a12] rounded border border-[#1a2336] px-2 sm:px-2.5 py-1 focus-within:border-indigo-500 transition-colors">
         <Link2 className="w-3.5 h-3.5 text-slate-500 mr-1.5 sm:mr-2 shrink-0" />
         <input
@@ -62,7 +61,6 @@ export const ControlBar: React.FC<ControlBarProps> = ({
         </button>
       </div>
 
-      {/* Quick Google Workspace Action Group */}
       <div className="flex items-center gap-1.5 shrink-0">
         {onOpenDrive && (
           <button

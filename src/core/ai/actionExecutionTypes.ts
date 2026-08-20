@@ -1,6 +1,5 @@
 import type { AgentAction } from '@/core/ai/agentTypes';
 
-/** Result of executing a single agent action */
 export interface ActionExecutionResult {
   actionId: string;
   type: AgentAction['type'];
@@ -17,7 +16,6 @@ export interface ActionExecutionResult {
   [key: string]: unknown;
 }
 
-/** Complete report for an action batch */
 export interface ActionExecutionReport {
   results: ActionExecutionResult[];
   totalActions: number;
@@ -26,14 +24,12 @@ export interface ActionExecutionReport {
   cancelledCount: number;
 }
 
-/** Destructive action types that require user confirmation */
 export const DESTRUCTIVE_ACTION_TYPES: ReadonlySet<AgentAction['type']> = new Set([
   'delete_sheet',
   'clear_sheet',
   'batch_delete_rows',
 ]);
 
-/** Pending destructive action awaiting user confirmation */
 export interface PendingDestructiveAction {
   id: string;
   action: AgentAction;
@@ -43,7 +39,6 @@ export interface PendingDestructiveAction {
   resolve: (confirmed: boolean) => void;
 }
 
-/** Helper to build a human-readable description of a destructive action */
 export function describeDestructiveAction(action: AgentAction, activeSheetTitle: string): string {
   const sheet = action.sheetTitle || activeSheetTitle;
   switch (action.type) {
@@ -60,7 +55,6 @@ export function describeDestructiveAction(action: AgentAction, activeSheetTitle:
   }
 }
 
-/** Build a model-facing summary (no secrets, no stack traces) */
 export function buildModelFacingSummary(report: ActionExecutionReport): string {
   const lines: string[] = [];
   for (const r of report.results) {

@@ -2,7 +2,7 @@ import { DeepSeekService, type DeepSeekMessage, } from '@/core/services/deepSeek
 import { extractTextActions, parseToolCall, } from '@/core/ai/agentActionParser';
 import { buildAgentPrompt } from '@/core/ai/buildAgentPrompt';
 import { AUTOFLOW_TOOLS } from '@/core/ai/agentTools';
-import type { AgentAction, ChatMessage, ChatMessageOption, PermittedDocument, } from '@/core/ai/agentTypes';
+import type { AgentAction, ChatMessage, ChatMessageOption, PermittedDocument, SheetDataIndex, } from '@/core/ai/agentTypes';
 import type { DataRow } from '@/types';
 export type { AgentAction, ChatMessage, ChatMessageOption, PermittedDocument, } from '@/core/ai/agentTypes';
 function isKnownSheetAction(action: AgentAction, knownTabs: Set<string>): boolean {
@@ -22,24 +22,26 @@ function isKnownSheetAction(action: AgentAction, knownTabs: Set<string>): boolea
         : true;
 }
 export class AiAgentService {
-    public static async chatWithAgent(userMessage: string, history: ChatMessage[], currentRows: DataRow[], activeSheetTitle: string, allSheetTabs: string[], permittedDocs: PermittedDocument[], allSheetHeaders: Record<string, string[]> = {}): Promise<{
+    public static async chatWithAgent(userMessage: string, history: ChatMessage[], currentRows: DataRow[], activeSheetTitle: string, allSheetTabs: string[], permittedDocs: PermittedDocument[], allSheetHeaders: Record<string, string[]> = {}, allSheetRows: SheetDataIndex = {}): Promise<{
         reply: string;
         actions: AgentAction[];
         options?: ChatMessageOption[];
     }> {
         const systemPrompt = buildAgentPrompt({
+            userMessage,
             currentRows,
             activeSheetTitle,
             allSheetTabs,
             permittedDocs,
             allSheetHeaders,
+            allSheetRows,
         });
         const messages: DeepSeekMessage[] = [{ role: 'system', content: systemPrompt }];
-        history.slice(-12).forEach((message) => {
+        history.slice(-8).forEach((message) => {
             if (message.sender === 'user' || message.sender === 'ai') {
                 messages.push({
                     role: message.sender === 'user' ? 'user' : 'assistant',
-                    content: message.text,
+                    content: message.text.slice(0, 1200),
                 });
             }
         });

@@ -1,5 +1,6 @@
 import { detectColorToGoogleRgb } from '@/core/google/color';
 import { GoogleStructureService } from '@/core/google/services/googleStructureService';
+import { readGoogleApiError } from '@/core/google/services/googleApiUtils';
 
 export class GoogleFormattingService extends GoogleStructureService {
   public static detectColorToGoogleRgb(colorStr: string): { red: number; green: number; blue: number } {
@@ -105,7 +106,7 @@ export class GoogleFormattingService extends GoogleStructureService {
       }
     }
 
-    const userEnteredFormat: any = {};
+    const userEnteredFormat: Record<string, unknown> = {};
     const fields: string[] = [];
 
     if (options.backgroundColor) {
@@ -113,7 +114,7 @@ export class GoogleFormattingService extends GoogleStructureService {
       fields.push('userEnteredFormat.backgroundColor');
     }
 
-    const textFormat: any = {};
+    const textFormat: Record<string, unknown> = {};
     if (options.fontColor) {
       textFormat.foregroundColor = this.detectColorToGoogleRgb(options.fontColor);
       fields.push('userEnteredFormat.textFormat.foregroundColor');
@@ -145,7 +146,7 @@ export class GoogleFormattingService extends GoogleStructureService {
 
     if (fields.length === 0) return;
 
-    const requests: any[] = [
+    const requests: Array<Record<string, unknown>> = [
       {
         repeatCell: {
           range: {
@@ -190,8 +191,7 @@ export class GoogleFormattingService extends GoogleStructureService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || 'Không thể định dạng ô tính.');
+      throw new Error(await readGoogleApiError(response, 'Không thể định dạng ô tính.'));
     }
   }
 
@@ -206,12 +206,19 @@ export class GoogleFormattingService extends GoogleStructureService {
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets(properties(sheetId,title),charts.chartId)`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return [];
-      const data = await res.json();
+      const data = await res.json() as {
+        sheets?: Array<{
+          properties?: { title?: string };
+          charts?: Array<{ chartId?: number }>;
+        }>;
+      };
       const targetSheet = (data.sheets || []).find(
-        (s: any) => s.properties?.title?.toLowerCase() === sheetTitle.toLowerCase()
+        (sheet) => sheet.properties?.title?.toLowerCase() === sheetTitle.toLowerCase()
       );
       if (!targetSheet || !targetSheet.charts) return [];
-      return targetSheet.charts.map((c: any) => c.chartId).filter((id: any) => id !== undefined);
+      return targetSheet.charts
+        .map((chart) => chart.chartId)
+        .filter((chartId): chartId is number => chartId !== undefined);
     } catch (err) {
       console.warn('[GoogleFormattingService] Failed to fetch sheet chart IDs:', err);
       return [];
@@ -247,8 +254,7 @@ export class GoogleFormattingService extends GoogleStructureService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || 'Không thể xóa biểu đồ.');
+      throw new Error(await readGoogleApiError(response, 'Không thể xóa biểu đồ.'));
     }
   }
 
@@ -272,7 +278,7 @@ export class GoogleFormattingService extends GoogleStructureService {
     const headerNames = await this.fetchSheetHeaderNames(spreadsheetId, sheetTitle);
     const anchorCol = headerNames.length > 0 ? headerNames.length + 1 : 7;
 
-    const chartSpec: any = chartType === 'PIE'
+    const chartSpec = chartType === 'PIE'
       ? {
           title,
           pieChart: {
@@ -387,8 +393,7 @@ export class GoogleFormattingService extends GoogleStructureService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || 'Không thể tạo biểu đồ trên Google Sheets.');
+      throw new Error(await readGoogleApiError(response, 'Không thể tạo biểu đồ trên Google Sheets.'));
     }
   }
 
@@ -400,9 +405,9 @@ export class GoogleFormattingService extends GoogleStructureService {
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/'${safeTitle}'!1:1`;
       const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
       if (!res.ok) return [];
-      const data = await res.json();
+      const data = await res.json() as { values?: unknown[][] };
       const row = data.values?.[0] || [];
-      return row.map((c: any) => String(c || '').trim()).filter(Boolean);
+      return row.map((cell) => String(cell || '').trim()).filter(Boolean);
     } catch (err) {
       console.warn('[GoogleFormattingService] Failed to fetch sheet header names:', err);
       return [];
@@ -468,8 +473,7 @@ export class GoogleFormattingService extends GoogleStructureService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || 'Không thể cập nhật độ rộng cột.');
+      throw new Error(await readGoogleApiError(response, 'Không thể cập nhật độ rộng cột.'));
     }
   }
 }

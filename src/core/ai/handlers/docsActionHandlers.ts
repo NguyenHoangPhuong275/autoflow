@@ -10,7 +10,6 @@ export async function executeDocsAction(
   if (action.type === 'read_google_doc') {
     let targetDocId = action.documentId?.trim();
 
-    // If no documentId or if documentId is a doc name (e.g. "Tuần 6"), auto-search Drive
     if (!targetDocId || !/^[a-zA-Z0-9_-]{20,}$/.test(targetDocId.replace(/^.*\/d\/([a-zA-Z0-9_-]+).*$/, '$1'))) {
       const docsOnDrive = await GoogleDriveService.searchDocs(targetDocId || undefined);
       if (docsOnDrive.length === 0) {

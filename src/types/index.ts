@@ -4,7 +4,7 @@ export type RowStatus = 'pending' | 'running' | 'success' | 'failed';
 export interface DataRow {
     id: string;
     rowNumber: number;
-    data: Record<string, any>;
+    data: Record<string, unknown>;
     status: RowStatus;
     resultMessage?: string;
     executionTimeMs?: number;

@@ -1,90 +1,83 @@
-import type { PermittedDocument } from '@/core/ai/agentTypes';
+import type { PermittedDocument, SheetDataIndex } from '@/core/ai/agentTypes';
 import type { DataRow } from '@/types';
 
 interface AgentPromptInput {
+  userMessage: string;
   currentRows: DataRow[];
   activeSheetTitle: string;
   allSheetTabs: string[];
   permittedDocs: PermittedDocument[];
   allSheetHeaders: Record<string, string[]>;
+  allSheetRows: SheetDataIndex;
 }
 
 export function buildAgentPrompt({
+  userMessage,
   currentRows,
   activeSheetTitle,
   allSheetTabs,
   permittedDocs,
   allSheetHeaders,
+  allSheetRows,
 }: AgentPromptInput): string {
-  const activeDocuments = permittedDocs
-    .filter((doc) => doc.isGranted)
-    .map((doc) => `- ${doc.name}: ${doc.contentSummary}`)
-    .join('\n');
+  const sheetNames = [...new Set([...allSheetTabs, ...Object.keys(allSheetHeaders), ...Object.keys(allSheetRows), activeSheetTitle])];
+  const rankedSheets = sheetNames
+    .map((sheetName) => ({ sheetName, score: scoreSource(userMessage, sheetName, allSheetHeaders[sheetName], allSheetRows[sheetName]) }))
+    .sort((left, right) => right.score - left.score || (left.sheetName === activeSheetTitle ? -1 : 1));
+  const selectedSheets = rankedSheets.slice(0, 4).map(({ sheetName }) => sheetName);
+  const sheetContext = selectedSheets.map((sheetName) => {
+    const rows = allSheetRows[sheetName] ?? (sheetName === activeSheetTitle ? currentRows : []);
+    const headers = allSheetHeaders[sheetName] ?? (rows[0] ? Object.keys(rows[0].data) : []);
+    const samples = rows.slice(0, 4).map((row) => `    #${row.rowNumber}: ${JSON.stringify(row.data)}`).join('\n').slice(0, 1200);
+    return [
+      `Nguồn Sheet: "${sheetName}"${sheetName === activeSheetTitle ? ' [đang mở]' : ''}`,
+      `  Cột: [${headers.join(', ')}]`,
+      `  Số dòng đã lập chỉ mục: ${rows.length}`,
+      samples || '  Chưa có mẫu dữ liệu',
+    ].join('\n');
+  }).join('\n\n');
 
-  const rowsContext = currentRows
-    .map(
-      (row) =>
-        `Hàng #${row.rowNumber} [ID: "${row.data['ID'] || row.data['id'] || row.id}"]: ${JSON.stringify(row.data)}`
-    )
-    .join('\n');
-
-  const tabs = allSheetTabs.length > 0 ? allSheetTabs.join(', ') : activeSheetTitle;
-  const headersSummary =
-    Object.entries(allSheetHeaders)
-      .map(([tab, cols]) => `  - Sheet "${tab}": [ ${cols.join(', ')} ]`)
-      .join('\n') ||
-    `  - Sheet "${activeSheetTitle}": [ ${currentRows.length > 0 ? Object.keys(currentRows[0].data).join(', ') : 'Chưa có dữ liệu'} ]`;
+  const documentContext = permittedDocs
+    .filter((document) => document.isGranted)
+    .map((document) => ({ document, score: scoreSource(userMessage, document.name, [], [{ data: { content: document.contentSummary }, id: document.id, rowNumber: 0, status: 'pending' }]) }))
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 3)
+    .map(({ document }) => `Nguồn tài liệu: "${document.name}"\n${document.contentSummary.slice(0, 1800)}`)
+    .join('\n\n');
 
   const fence = String.fromCharCode(96).repeat(3);
 
-  return `BẠN LÀ AUTOFLOW AGENT — trợ lý tự động hoá toàn diện Google Workspace (Sheets, Gmail, Drive, Docs).
-Mọi hành động đều thông qua các tool đã được cấp.
+  return `BẠN LÀ AUTOFLOW AGENT, trợ lý DeepSeek điều phối Google Sheets, Gmail, Drive và Docs bằng các tool được cấp.
 
-=== WORKBOOK HIỆN TẠI ===
-Tabs: [ ${tabs} ]
-${headersSummary}
-Tab đang mở: "${activeSheetTitle}" (${currentRows.length} hàng)
-${rowsContext || '(Chưa có dữ liệu)'}
-${activeDocuments ? `Tài liệu cấp quyền:\n${activeDocuments}` : ''}
+=== NGUỒN DỮ LIỆU WORKSPACE ===
+${sheetContext || 'Chưa có Sheet nào được lập chỉ mục.'}
+${documentContext ? `\n${documentContext}` : ''}
 
-=== RANH GIỚI QUYỀN HẠN TUYỆT ĐỐI (BOUNDARY RULES — KHÔNG ĐƯỢC VI PHẠM) ===
-⛔ BẠN ĐƯỢC CẤP TOÀN QUYỀN THAO TÁC (TẠO, ĐỌC, SỬA, XÓA, TÌM KIẾM, GỬI MAIL...) TRÊN GOOGLE SHEETS, GMAIL, GOOGLE DRIVE VÀ GOOGLE DOCS THÔNG QUA CÁC TOOL ĐÃ ĐƯỢC CẤP.
-⛔ BẠN TUYỆT ĐỐI KHÔNG ĐƯỢC:
-   - Viết code không liên quan (Python, C++, SQL...), gọi API ngoài không thuộc hệ thống, chạy lệnh shell máy chủ.
-   - Từ chối nếu yêu cầu hoàn toàn ngoài phạm vi Google Workspace:
-     -> "Yêu cầu này nằm ngoài phạm vi — tôi chỉ hỗ trợ tự động hóa Google Workspace (Sheets, Gmail, Drive, Docs). Bạn cần tôi làm gì với dữ liệu?"
+=== NHẬN DIỆN NGỮ NGHĨA TỰ ĐỘNG ===
+1. Tự suy luận chủ đề của từng nguồn từ tên nguồn, tên cột, giá trị mẫu và nội dung tài liệu. Không gắn cứng nguồn vào sản phẩm, khách hàng, bán hàng, ô tô hay bất kỳ lĩnh vực nào.
+2. Với mỗi câu hỏi, đối chiếu ý định và thực thể người dùng với tất cả nguồn. Chọn nguồn có nội dung liên quan nhất, kể cả khi đó không phải Sheet đang mở.
+3. Khi nhiều nguồn cùng liên quan, kết hợp chúng và nói rõ dữ liệu nào đến từ nguồn nào. Không trộn dữ liệu của nguồn không liên quan.
+4. Nếu chưa đủ dữ liệu cục bộ, dùng search_drive, read_google_doc hoặc search_emails để tìm đúng nguồn. Không đoán nội dung chưa được cung cấp.
+5. Khi thực hiện action trên Sheet khác tab đang mở, luôn truyền sheetTitle chính xác. Dùng switch_sheet trước nếu thao tác dòng phụ thuộc dữ liệu của tab đó.
+6. Nếu hai nguồn có độ liên quan tương đương nhưng dẫn đến kết quả khác nhau, hỏi lại người dùng thay vì tự chọn mơ hồ.
 
-=== NGUYÊN TẮC THỰC THI (FULL ACCESS) ===
-1. THAO TÁC LIÊN HOÀN: Khi người dùng yêu cầu nhiều bước (ví dụ: xóa biểu đồ cũ và tạo 3 biểu đồ mới, hoặc đổi tên cột và xóa dòng), gom ĐẦY ĐỦ tất cả action vào 1 khối JSON ${fence}action [ ... ] ${fence}. Tuyệt đối không bỏ sót bước sau!
+=== BOUNDARY RULES ===
+Bạn có FULL ACCESS tạo, đọc, sửa, xóa, tìm kiếm và gửi dữ liệu trên Google Workspace thông qua đúng các tool được cấp. Không gọi API ngoài hệ thống, không chạy shell và không viết code ngoài phạm vi Google Workspace.
 
-2. TỰ ĐỘNG GIÃN CỘT: Khi người dùng yêu cầu "mở rộng cột", "căn chỉnh hiển thị", "cột bị hẹp", chạy ngay action set_column_width (pixelSize: 160) hoặc auto_resize_columns.
+=== NGUYÊN TẮC THỰC THI ===
+- Một yêu cầu nhiều bước phải trả đủ toàn bộ action, không bỏ sót bước.
+- Yêu cầu mơ hồ về màu sắc hoặc phong cách có thể trả block ${fence}options ... ${fence}.
+- Yêu cầu một email hoặc OTP gần nhất phải gọi search_emails với maxResults: 1.
+- Trả lời trực tiếp, ngắn gọn và dựa trên nguồn đã nhận diện; không giới thiệu lại bản thân.`;
+}
 
-3. ĐỊNH DẠNG & NÚT CHỌN (OPTIONS): Khi yêu cầu đổi màu / font mơ hồ hoặc có nhiều phong cách, trả về khối ${fence}options [ ... ] ${fence} để người dùng bấm chọn trực tiếp:
-${fence}options
-[
-  {
-    "label": "Dark Modern",
-    "description": "Header #0b101c • Chữ Cyan #22d3ee • Font Roboto",
-    "previewBg": "#0b101c",
-    "previewColor": "#22d3ee",
-    "action": {
-      "type": "format_cells",
-      "sheetTitle": "${activeSheetTitle}",
-      "range": "1:1",
-      "backgroundColor": "#0b101c",
-      "fontColor": "#22d3ee",
-      "bold": true,
-      "fontFamily": "Roboto",
-      "alignment": "CENTER"
-    }
-  }
-]
-${fence}
+function scoreSource(query: string, name: string, headers: string[] = [], rows: DataRow[] = []): number {
+  const terms = normalize(query).split(/\s+/).filter((term) => term.length > 2);
+  if (terms.length === 0) return name === 'active' ? 1 : 0;
+  const source = normalize([name, ...headers, ...rows.slice(0, 6).map((row) => JSON.stringify(row.data))].join(' '));
+  return terms.reduce((score, term) => score + (source.includes(term) ? 1 : 0), 0);
+}
 
-4. TRUY VẤN WORKSPACE CHÍNH XÁC:
-- Khi người dùng hỏi "1 mail", "mail gần nhất", "mã OTP gần nhất", hãy gọi search_emails với maxResults: 1 để trả về đúng 1 thư trọng tâm, không liệt kê thừa.
-
-=== QUY TẮC PHẢN HỒI (TIẾT KIỆM TOKEN) ===
--> Trả lời ngắn gọn 1-2 câu trực diện kết quả + khối action/options (nếu có).
--> KHÔNG giới thiệu bản thân, KHÔNG liệt kê chức năng dạng bullet points, KHÔNG mở đầu bằng câu chào thừa.`;
+function normalize(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 }

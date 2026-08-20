@@ -6,18 +6,9 @@ import {
   type PendingDestructiveAction,
 } from '@/core/ai/actionExecutionTypes';
 
-/**
- * Manages a queue of destructive actions that require user confirmation.
- * Only the first pending action is shown in the dialog at a time.
- */
 export function useDestructiveActionQueue() {
   const [pendingAction, setPendingAction] = useState<PendingDestructiveAction | null>(null);
 
-  /**
-   * If the action is destructive, enqueue it and return a Promise that
-   * resolves to `true` (confirmed) or `false` (cancelled).
-   * If not destructive, resolves immediately to `true`.
-   */
   const requestConfirmation = useCallback(
     (action: AgentAction, activeSheetTitle: string, rowCount?: number): Promise<boolean> => {
       if (!DESTRUCTIVE_ACTION_TYPES.has(action.type)) {

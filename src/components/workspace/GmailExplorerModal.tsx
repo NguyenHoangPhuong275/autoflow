@@ -7,6 +7,7 @@ import {
   ArrowDownTrayIcon as Download,
 } from '@heroicons/react/24/outline';
 import { GoogleGmailService, EmailSummary, EmailDetail } from '@/core/google/services/googleGmailService';
+import { getErrorMessage } from '@/core/utils/errors';
 
 interface GmailExplorerModalProps {
   isOpen: boolean;
@@ -35,9 +36,10 @@ export const GmailExplorerModal: React.FC<GmailExplorerModalProps> = ({
         maxResults: 15,
       });
       setEmails(list);
-    } catch (err: any) {
-      console.error('[GmailExplorerModal] Error fetching emails:', err);
-      setError(err.message || 'Không thể tải hộp thư Gmail.');
+    } catch (error: unknown) {
+      const message = getErrorMessage(error, 'Không thể tải hộp thư Gmail.');
+      console.error(message);
+      setError(message);
     } finally {
       setIsLoading(false);
     }
@@ -55,8 +57,8 @@ export const GmailExplorerModal: React.FC<GmailExplorerModalProps> = ({
     try {
       const detail = await GoogleGmailService.fetchEmail(id);
       setSelectedEmail(detail);
-    } catch (err: any) {
-      console.error('[GmailExplorerModal] Error viewing email:', err);
+    } catch (error: unknown) {
+      setError(getErrorMessage(error, 'Không thể đọc nội dung email.'));
     } finally {
       setIsLoadingDetail(false);
     }
@@ -74,7 +76,6 @@ export const GmailExplorerModal: React.FC<GmailExplorerModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 font-mono">
       <div className="w-full max-w-3xl rounded-xl border border-[#1a2336] bg-[#0b0f19] shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
-        {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-[#1a2336] bg-[#080c14]">
           <div className="flex items-center gap-2">
             <div className="p-1.5 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-400">
@@ -93,7 +94,6 @@ export const GmailExplorerModal: React.FC<GmailExplorerModalProps> = ({
           </button>
         </div>
 
-        {/* Search & Actions */}
         <div className="p-3 border-b border-[#1a2336] bg-[#070a12] flex flex-wrap gap-2 items-center justify-between">
           <div className="flex-1 min-w-[220px] flex items-center bg-[#0e1422] rounded-lg border border-[#1a2336] px-2.5 py-1.5 focus-within:border-rose-500">
             <Search className="w-3.5 h-3.5 text-slate-500 mr-2 shrink-0" />
@@ -125,9 +125,7 @@ export const GmailExplorerModal: React.FC<GmailExplorerModalProps> = ({
           </button>
         </div>
 
-        {/* Body (Split list and preview) */}
         <div className="flex-1 overflow-hidden grid grid-cols-1 md:grid-cols-12 divide-y md:divide-y-0 md:divide-x divide-[#1a2336]">
-          {/* Email list */}
           <div className="md:col-span-6 overflow-y-auto p-3 space-y-2 max-h-[50vh] md:max-h-full">
             {isLoading ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-400 gap-2">
@@ -168,7 +166,6 @@ export const GmailExplorerModal: React.FC<GmailExplorerModalProps> = ({
             )}
           </div>
 
-          {/* Email detail preview */}
           <div className="md:col-span-6 overflow-y-auto p-4 bg-[#070a12] flex flex-col">
             {isLoadingDetail ? (
               <div className="flex flex-col items-center justify-center py-16 text-slate-400 gap-2">

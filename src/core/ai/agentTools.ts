@@ -13,9 +13,6 @@ export { GMAIL_TOOLS } from './tools/gmailTools';
 export { DRIVE_TOOLS } from './tools/driveTools';
 export { DOCS_TOOLS } from './tools/docsTools';
 
-/**
- * AUTOFLOW_TOOLS — Complete aggregated list of 43 Google Workspace & Pipeline automation tools.
- */
 export const AUTOFLOW_TOOLS: DeepSeekToolDefinition[] = [
   ...SHEET_TOOLS,
   ...ROW_TOOLS,

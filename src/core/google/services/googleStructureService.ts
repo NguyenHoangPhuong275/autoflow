@@ -1,4 +1,5 @@
 import { GoogleWriteService } from '@/core/google/services/googleWriteService';
+import { readGoogleApiError } from '@/core/google/services/googleApiUtils';
 
 export class GoogleStructureService extends GoogleWriteService {
   public static async addSheetTab(
@@ -34,8 +35,7 @@ export class GoogleStructureService extends GoogleWriteService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || `Không thể tạo trang tính "${sheetTitle}".`);
+      throw new Error(await readGoogleApiError(response, `Không thể tạo trang tính "${sheetTitle}".`));
     }
 
     const resData = await response.json();
@@ -84,8 +84,7 @@ export class GoogleStructureService extends GoogleWriteService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || `Không thể xóa trang tính "${sheetTitle}".`);
+      throw new Error(await readGoogleApiError(response, `Không thể xóa trang tính "${sheetTitle}".`));
     }
   }
 
@@ -127,8 +126,7 @@ export class GoogleStructureService extends GoogleWriteService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || `Không thể nhân bản trang "${sourceSheetTitle}".`);
+      throw new Error(await readGoogleApiError(response, `Không thể nhân bản trang "${sourceSheetTitle}".`));
     }
 
     const resData = await response.json();
@@ -176,8 +174,7 @@ export class GoogleStructureService extends GoogleWriteService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || `Không thể đổi tên trang tính.`);
+      throw new Error(await readGoogleApiError(response, 'Không thể đổi tên trang tính.'));
     }
   }
 
@@ -222,8 +219,7 @@ export class GoogleStructureService extends GoogleWriteService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || 'Không thể cố định hàng/cột.');
+      throw new Error(await readGoogleApiError(response, 'Không thể cố định hàng/cột.'));
     }
   }
 
@@ -270,8 +266,7 @@ export class GoogleStructureService extends GoogleWriteService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || 'Không thể sắp xếp dữ liệu.');
+      throw new Error(await readGoogleApiError(response, 'Không thể sắp xếp dữ liệu.'));
     }
   }
 
@@ -279,7 +274,7 @@ export class GoogleStructureService extends GoogleWriteService {
     spreadsheetId: string,
     sheetTitle: string,
     rangeA1: string,
-    values: any[][]
+    values: unknown[][]
   ): Promise<void> {
     const token = this.getAccessToken();
     if (!token) throw new Error('Chưa đăng nhập Google.');
@@ -301,8 +296,7 @@ export class GoogleStructureService extends GoogleWriteService {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || `Không thể cập nhật dải ô "${rangeA1}".`);
+      throw new Error(await readGoogleApiError(response, `Không thể cập nhật dải ô "${rangeA1}".`));
     }
   }
 
@@ -361,8 +355,7 @@ export class GoogleStructureService extends GoogleWriteService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || `Không thể xóa cột "${colKey}".`);
+      throw new Error(await readGoogleApiError(response, `Không thể xóa cột "${colKey}".`));
     }
 
     return currentHeaders.filter((_, idx) => idx !== colIndex);

@@ -1,47 +1,44 @@
-import { useEffect, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { PermittedDocument } from '@/core/services/aiAgentService';
-export function useAgentDocuments(activeSheetTitle: string, rowCount: number) {
+
+export function useAgentDocuments(externalDocuments: PermittedDocument[] = []) {
     const [showDocModal, setShowDocModal] = useState(false);
     const [newDocName, setNewDocName] = useState('');
     const [newDocContent, setNewDocContent] = useState('');
-    const [permittedDocs, setPermittedDocs] = useState<PermittedDocument[]>([
-        {
-            id: 'doc-active-sheet',
-            name: `Sheet: ${activeSheetTitle}`,
-            type: 'google_sheet',
-            isGranted: true,
-            contentSummary: `Dữ liệu bảng hiện tại gồm ${rowCount} dòng sản phẩm/khách hàng.`,
-        },
-    ]);
-    useEffect(() => {
-        setPermittedDocs((prev) => prev.map((document) => document.id === 'doc-active-sheet'
-            ? {
-                ...document,
-                name: `Sheet: ${activeSheetTitle}`,
-                contentSummary: `Bảng "${activeSheetTitle}" có ${rowCount} hàng dữ liệu.`,
-            }
-            : document));
-    }, [rowCount, activeSheetTitle]);
+    const [customDocuments, setCustomDocuments] = useState<PermittedDocument[]>([]);
+    const [disabledDocumentIds, setDisabledDocumentIds] = useState<Set<string>>(new Set());
+
+    const permittedDocs = useMemo(() => {
+        const documents = [...externalDocuments, ...customDocuments];
+        return documents
+            .filter((document, index) => documents.findIndex((candidate) => candidate.id === document.id) === index)
+            .map((document) => ({ ...document, isGranted: !disabledDocumentIds.has(document.id) }));
+    }, [customDocuments, disabledDocumentIds, externalDocuments]);
+
     const toggleDocPermission = (docId: string) => {
-        setPermittedDocs((prev) => prev.map((document) => document.id === docId
-            ? { ...document, isGranted: !document.isGranted }
-            : document));
+        setDisabledDocumentIds((previous) => {
+            const next = new Set(previous);
+            if (next.has(docId)) next.delete(docId);
+            else next.add(docId);
+            return next;
+        });
     };
+
     const handleAddCustomDoc = () => {
-        if (!newDocName.trim())
-            return;
-        const newDocument: PermittedDocument = {
+        const name = newDocName.trim();
+        if (!name) return;
+        setCustomDocuments((previous) => [...previous, {
             id: `doc-${Date.now()}`,
-            name: newDocName.trim(),
+            name,
             type: 'text_note',
             isGranted: true,
-            contentSummary: newDocContent.trim() || 'Tài liệu hướng dẫn bổ sung.',
-        };
-        setPermittedDocs((prev) => [...prev, newDocument]);
+            contentSummary: newDocContent.trim() || name,
+        }]);
         setNewDocName('');
         setNewDocContent('');
         setShowDocModal(false);
     };
+
     return {
         showDocModal,
         setShowDocModal,

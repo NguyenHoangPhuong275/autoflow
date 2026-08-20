@@ -69,7 +69,7 @@ export async function executeRowAction(
 
   if (action.type === 'batch_update_rows' && action.updates) {
     const affectedRows: number[] = [];
-    action.updates.forEach((item: any) => {
+    action.updates.forEach((item) => {
       const r = findRow(rows, item);
       if (r) {
         const updateData = item.updatedData || (item.colKey ? { [item.colKey]: item.newValue } : {});

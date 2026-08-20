@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { ChatMessage } from '@/core/ai/agentTypes';
+import { getErrorMessage } from '@/core/utils/errors';
 
 const STORAGE_KEY = 'autoflow_chat_history_v1';
 const MAX_MESSAGES = 100;
@@ -13,21 +14,14 @@ function createWelcomeMessage(): ChatMessage {
   };
 }
 
-/**
- * useChatHistory — Manages chat state for the current session.
- * Always starts with a fresh conversation upon page load / app entry.
- */
 export function useChatHistory() {
-  // Always start with a fresh welcome message on new visit/reload
   const [messages, setMessagesState] = useState<ChatMessage[]>(() => [createWelcomeMessage()]);
-  const messagesRef = useRef(messages);
 
-  // Clean up any legacy persistent storage on mount so previous sessions do not linger
   useEffect(() => {
     try {
       localStorage.removeItem(STORAGE_KEY);
-    } catch (err) {
-      console.warn('[useChatHistory] Failed to clear legacy storage:', err);
+    } catch (error: unknown) {
+      console.warn(`Không thể xóa lịch sử chat cũ: ${getErrorMessage(error)}`);
     }
   }, []);
 
@@ -36,7 +30,6 @@ export function useChatHistory() {
       setMessagesState((prev) => {
         const next = typeof updater === 'function' ? updater(prev) : updater;
         const trimmed = next.slice(-MAX_MESSAGES);
-        messagesRef.current = trimmed;
         return trimmed;
       });
     },
@@ -45,12 +38,11 @@ export function useChatHistory() {
 
   const clearHistory = useCallback(() => {
     const welcome = [createWelcomeMessage()];
-    messagesRef.current = welcome;
     setMessagesState(welcome);
     try {
       localStorage.removeItem(STORAGE_KEY);
-    } catch (err) {
-      console.warn('[useChatHistory] Failed to clear storage on manual reset:', err);
+    } catch (error: unknown) {
+      console.warn(`Không thể xóa lịch sử chat: ${getErrorMessage(error)}`);
     }
   }, []);
 

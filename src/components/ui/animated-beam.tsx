@@ -17,7 +17,6 @@ export interface AnimatedBeamProps {
     endXOffset?: number;
     endYOffset?: number;
     isActive?: boolean;
-    /** Increment to force path recalculation (e.g. after drag) */
     refreshKey?: number;
 }
 export const AnimatedBeam: React.FC<AnimatedBeamProps> = ({ className, containerRef, fromRef, toRef, curvature = 0, reverse = false, duration = 3, delay = 0, pathColor = '#1e293b', beamColor = '#38bdf8', startXOffset = 0, startYOffset = 0, endXOffset = 0, endYOffset = 0, isActive = true, refreshKey = 0, }) => {

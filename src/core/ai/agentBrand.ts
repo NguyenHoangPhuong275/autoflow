@@ -1,6 +1,3 @@
-/**
- * AutoFlow — Centralized Agent Branding Configuration
- */
 export const AGENT_BRAND = {
   name: 'AutoFlow Agent',
   shortName: 'AutoFlow',

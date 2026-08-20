@@ -10,7 +10,7 @@ export class ExcelParser {
                     const workbook = XLSX.read(data, { type: 'array' });
                     const firstSheetName = workbook.SheetNames[0];
                     const worksheet = workbook.Sheets[firstSheetName];
-                    const json = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet);
+                    const json = XLSX.utils.sheet_to_json<Record<string, unknown>>(worksheet);
                     if (json.length === 0) {
                         throw new Error('Tệp không có dữ liệu ở trang đầu tiên.');
                     }

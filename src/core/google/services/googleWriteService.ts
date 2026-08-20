@@ -1,4 +1,5 @@
 import { GoogleReadService } from '@/core/google/services/googleReadService';
+import { readGoogleApiError } from '@/core/google/services/googleApiUtils';
 
 export class GoogleWriteService extends GoogleReadService {
   public static async updateHeaders(
@@ -31,8 +32,7 @@ export class GoogleWriteService extends GoogleReadService {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || `Không thể cập nhật tiêu đề cột trang "${sheetTitle}".`);
+      throw new Error(await readGoogleApiError(response, `Không thể cập nhật tiêu đề cột trang "${sheetTitle}".`));
     }
   }
 
@@ -42,7 +42,7 @@ export class GoogleWriteService extends GoogleReadService {
     rowNumber: number,
     colKey: string,
     allHeaders: string[],
-    newValue: any
+    newValue: unknown
   ): Promise<void> {
     const token = this.getAccessToken();
     if (!token) {
@@ -72,8 +72,7 @@ export class GoogleWriteService extends GoogleReadService {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || `Không thể cập nhật ô "${colKey}".`);
+      throw new Error(await readGoogleApiError(response, `Không thể cập nhật ô "${colKey}".`));
     }
   }
 
@@ -81,7 +80,7 @@ export class GoogleWriteService extends GoogleReadService {
     spreadsheetId: string,
     sheetTitle: string,
     allHeaders: string[],
-    rowData: Record<string, any>
+    rowData: Record<string, unknown>
   ): Promise<void> {
     const token = this.getAccessToken();
     if (!token) {
@@ -106,8 +105,7 @@ export class GoogleWriteService extends GoogleReadService {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || `Không thể thêm hàng vào trang "${sheetTitle}".`);
+      throw new Error(await readGoogleApiError(response, `Không thể thêm hàng vào trang "${sheetTitle}".`));
     }
   }
 
@@ -153,8 +151,7 @@ export class GoogleWriteService extends GoogleReadService {
     );
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || 'Không thể xóa hàng trên Google Sheet.');
+      throw new Error(await readGoogleApiError(response, 'Không thể xóa hàng trên Google Sheet.'));
     }
   }
 
@@ -179,8 +176,7 @@ export class GoogleWriteService extends GoogleReadService {
     });
 
     if (!response.ok) {
-      const data = await response.json().catch(() => ({}));
-      throw new Error(data.error?.message || `Không thể xóa dữ liệu trang "${sheetTitle}".`);
+      throw new Error(await readGoogleApiError(response, `Không thể xóa dữ liệu trang "${sheetTitle}".`));
     }
   }
 }

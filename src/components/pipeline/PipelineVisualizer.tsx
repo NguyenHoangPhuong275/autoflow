@@ -53,13 +53,11 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
   const engineRef = useRef<HTMLDivElement>(null);
   const deepSeekRef = useRef<HTMLDivElement>(null);
 
-  // Increment to force AnimatedBeam path recalculation during drag
   const [refreshKey, setRefreshKey] = useState(0);
   const handleDragMove = useCallback(() => {
     setRefreshKey((k) => k + 1);
   }, []);
 
-  // Recalculate beam paths shortly after mount once stored positions apply
   useEffect(() => {
     const timer = setTimeout(() => {
       setRefreshKey((k) => k + 1);
@@ -161,7 +159,6 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
         </div>
       </div>
 
-      {/* Source nodes — draggable with persistence */}
       <div className="z-10 flex flex-col gap-1 pt-4">
         {sources.map(({ id, storageId, label, icon: Icon, ref, activeClass }) => (
           <DraggableNode
@@ -180,7 +177,6 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
         ))}
       </div>
 
-      {/* Engine node — draggable with persistence */}
       <DraggableNode
         id="node_engine"
         nodeRef={engineRef as React.RefObject<HTMLDivElement>}
@@ -194,7 +190,6 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
         <span className="text-[11px] font-bold">AutoFlow Core</span>
       </DraggableNode>
 
-      {/* DeepSeek node — draggable with persistence */}
       <DraggableNode
         id="node_deepseek"
         nodeRef={deepSeekRef as React.RefObject<HTMLDivElement>}
@@ -210,7 +205,6 @@ export const PipelineVisualizer: React.FC<PipelineVisualizerProps> = ({ activeSo
         <span>DeepSeek AI</span>
       </DraggableNode>
 
-      {/* Beams — live-updating via refreshKey */}
       {sources.map(({ id, ref, beamColor }, index) => (
         <AnimatedBeam
           key={id}

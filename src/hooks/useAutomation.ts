@@ -4,6 +4,8 @@ import { AutomationEngine } from '@/core/engine/automationEngine';
 import { ExcelParser } from '@/core/parsers/excelParser';
 import { GoogleSheetReader } from '@/core/parsers/googleSheetReader';
 import { GoogleSyncService, SheetTabInfo } from '@/core/services/googleSyncService';
+import { getErrorMessage } from '@/core/utils/errors';
+import type { SheetDataIndex } from '@/core/ai/agentTypes';
 const DEFAULT_REAL_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1afOya-FzRWZK9wrstjeXlVWvf-ZInvWO9XThNbh44w8/edit?gid=0#gid=0';
 export function useAutomation() {
     const engineRef = useRef<AutomationEngine>(new AutomationEngine());
@@ -12,6 +14,8 @@ export function useAutomation() {
     const [activeSourceId, setActiveSourceId] = useState<DataSourceId>('google_sheets');
     const [stage, setStage] = useState<PipelineStage>('ready');
     const [rows, setRows] = useState<DataRow[]>([]);
+    const [allSheetRows, setAllSheetRows] = useState<SheetDataIndex>({});
+    const allSheetRowsRef = useRef<SheetDataIndex>({});
     const [logs, setLogs] = useState<LogEntry[]>([]);
     const [stats, setStats] = useState<ExecutionStats>(engine.getStats());
     const [speed, setSpeed] = useState<number>(600);
@@ -54,6 +58,14 @@ export function useAutomation() {
             setLogs((prev) => [...prev, logEntry]);
         };
     }, [engine]);
+    useEffect(() => {
+        if (!activeSheetTitle) return;
+        setAllSheetRows((previous) => {
+            const next = { ...previous, [activeSheetTitle]: rows };
+            allSheetRowsRef.current = next;
+            return next;
+        });
+    }, [activeSheetTitle, rows]);
     const fetchFromUrl = useCallback(async (targetUrl: string, sheetTitle?: string) => {
         if (!targetUrl.trim())
             return;
@@ -105,6 +117,25 @@ export function useAutomation() {
                         setAllSheetHeaders((prev) => ({ ...prev, ...headersMap }));
                     }
                 });
+                const missingTabs = tabNames.filter((title) => title !== selectedTab && !allSheetRowsRef.current[title]);
+                if (missingTabs.length > 0) {
+                    void Promise.allSettled(missingTabs.map(async (title) => {
+                        const tabRows = GoogleSyncService.getAccessToken()
+                            ? await GoogleSyncService.fetchSheet(spreadsheetId, title)
+                            : (await GoogleSheetReader.fetchRealGoogleSheet(targetUrl, title)).rows;
+                        return [title, tabRows] as const;
+                    })).then((results) => {
+                        const loadedEntries = results
+                            .filter((result): result is PromiseFulfilledResult<readonly [string, DataRow[]]> => result.status === 'fulfilled')
+                            .map((result) => result.value);
+                        if (loadedEntries.length === 0) return;
+                        setAllSheetRows((previous) => {
+                            const next = { ...previous, ...Object.fromEntries(loadedEntries) };
+                            allSheetRowsRef.current = next;
+                            return next;
+                        });
+                    });
+                }
                 engine.setRows(realRows.map((r) => r.data));
                 setRows(engine.getRows());
                 setStats(engine.getStats());
@@ -116,9 +147,10 @@ export function useAutomation() {
                 setStage('ready');
             }
         }
-        catch (err: any) {
-            console.error('[useAutomation] Error fetching sheet from URL:', err);
-            appendLog(`err-${Date.now()}`, 'error', `Lỗi đọc Google Sheet: ${err.message}`);
+        catch (error: unknown) {
+            const message = getErrorMessage(error, 'Không thể đọc Google Sheet.');
+            console.error(message);
+            appendLog(`err-${Date.now()}`, 'error', `Lỗi đọc Google Sheet: ${message}`);
             setStage('ready');
         }
         finally {
@@ -141,6 +173,8 @@ export function useAutomation() {
             const parsedRows = await ExcelParser.parseFile(file);
             const title = file.name.replace(/\.[^/.]+$/, '');
             setSheetTabs([{ title, sheetId: 0 }]);
+            setAllSheetRows({ [title]: parsedRows });
+            allSheetRowsRef.current = { [title]: parsedRows };
             setActiveSheetTitle(title);
             if (parsedRows.length > 0) {
                 const fileHeaders = Object.keys(parsedRows[0].data);
@@ -153,9 +187,10 @@ export function useAutomation() {
             setUrl(`Tệp: ${file.name}`);
             appendLog(`file-${Date.now()}`, 'success', `Đọc tệp thành công: ${file.name} (${parsedRows.length} hàng)`);
         }
-        catch (err: any) {
-            console.error('[useAutomation] Error parsing local file:', err);
-            appendLog(`err-${Date.now()}`, 'error', `Lỗi đọc tệp: ${err.message}`);
+        catch (error: unknown) {
+            const message = getErrorMessage(error, 'Không thể đọc tệp.');
+            console.error(message);
+            appendLog(`err-${Date.now()}`, 'error', `Lỗi đọc tệp: ${message}`);
         }
         finally {
             setIsLoading(false);
@@ -317,7 +352,7 @@ export function useAutomation() {
             });
         }
     }, [url, activeSheetTitle, allSheetHeaders, fetchFromUrl]);
-    const updateRange = useCallback((sheetTitle: string, rangeA1: string, values: any[][]) => {
+    const updateRange = useCallback((sheetTitle: string, rangeA1: string, values: unknown[][]) => {
         const targetTitle = sheetTitle || activeSheetTitle;
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
@@ -378,7 +413,7 @@ export function useAutomation() {
             });
         }
     }, [url, activeSheetTitle]);
-    const updateRow = useCallback((rowId: string, updatedData: Record<string, any>, colKey?: string, newValue?: any) => {
+    const updateRow = useCallback((rowId: string, updatedData: Record<string, unknown>, colKey?: string, newValue?: unknown) => {
         const updated = engine.updateRow(rowId, updatedData);
         setRows([...updated]);
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
@@ -400,9 +435,9 @@ export function useAutomation() {
     }, [engine, url, activeSheetTitle]);
     const batchUpdateRows = useCallback((updates: Array<{
         rowId: string;
-        updatedData: Record<string, any>;
+        updatedData: Record<string, unknown>;
         colKey?: string;
-        newValue?: any;
+        newValue?: unknown;
     }>) => {
         const updated = engine.batchUpdateRows(updates);
         setRows([...updated]);
@@ -479,7 +514,7 @@ export function useAutomation() {
             });
         }
     }, [engine, url, activeSheetTitle, fetchFromUrl]);
-    const addRow = useCallback((customData?: Record<string, any>) => {
+    const addRow = useCallback((customData?: Record<string, unknown>) => {
         const updated = engine.addRow(customData);
         setRows([...updated]);
         setStats(engine.getStats());
@@ -548,6 +583,7 @@ export function useAutomation() {
         isLoading,
         sheetTabs,
         allSheetHeaders,
+        allSheetRows,
         activeSheetTitle,
         selectSheetTab,
         loadFile,

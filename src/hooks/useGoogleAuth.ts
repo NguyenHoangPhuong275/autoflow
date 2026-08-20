@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { APP_CONFIG } from '@/core/config';
 import { GoogleSyncService } from '@/core/services/googleSyncService';
+import { getErrorMessage } from '@/core/utils/errors';
 export function useGoogleAuth(onLoginSuccess?: () => void) {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [clientId, setClientId] = useState(APP_CONFIG.googleClientId);
@@ -23,8 +24,8 @@ export function useGoogleAuth(onLoginSuccess?: () => void) {
             onLoginSuccess?.();
             setIsModalOpen(false);
         }
-        catch (error: any) {
-            setError(error.message || 'Đăng nhập Google thất bại.');
+        catch (error: unknown) {
+            setError(getErrorMessage(error, 'Đăng nhập Google thất bại.'));
             setIsModalOpen(true);
         }
         finally {

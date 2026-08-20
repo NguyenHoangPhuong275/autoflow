@@ -45,7 +45,6 @@ export const ShimmerButton = React.forwardRef<HTMLButtonElement, ShimmerButtonPr
         )}
         {...props}
       >
-        {/* shimmer slide */}
         <div
           className="absolute inset-0 overflow-hidden [border-radius:var(--radius)]"
           style={{ WebkitMask: 'none', mask: 'none' }}
@@ -54,7 +53,6 @@ export const ShimmerButton = React.forwardRef<HTMLButtonElement, ShimmerButtonPr
                style={{ animationDuration: 'var(--speed)' }} />
         </div>
 
-        {/* content */}
         <span className="relative z-10 flex items-center gap-1.5 text-white font-bold text-xs">
           {children}
         </span>

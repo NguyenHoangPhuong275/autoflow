@@ -26,10 +26,6 @@ function findColumnKey(row: DataRow, requestedColumn: string): string {
   );
 }
 
-/**
- * Creates inverse actions for a batch of executed actions based on the before-state snapshot.
- * Actions are processed in reverse order so that rollback correctly undoes step by step.
- */
 export function createInverseActions(
   actions: AgentAction[],
   snapshot: ActionSnapshot
@@ -37,7 +33,6 @@ export function createInverseActions(
   const inverseActions: AgentAction[] = [];
   const { rows, headers, sheetTitle } = snapshot;
 
-  // Process in reverse order for correct rollback sequence
   for (let i = actions.length - 1; i >= 0; i--) {
     const action = actions[i];
 
@@ -52,7 +47,7 @@ export function createInverseActions(
           inverseActions.push({
             type: 'update_row',
             rowNumber: targetRow.rowNumber,
-            idCol: targetRow.data['ID'] || targetRow.data['id'] || targetRow.id,
+            idCol: String(targetRow.data['ID'] || targetRow.data['id'] || targetRow.id),
             colKey: matchedCol,
             newValue: previousValue,
             updatedData: { ...targetRow.data, [matchedCol]: previousValue },
@@ -75,7 +70,7 @@ export function createInverseActions(
             if (targetRow) {
               const matchedCol = findColumnKey(targetRow, update.colKey);
               inverseUpdates.push({
-                idCol: targetRow.data['ID'] || targetRow.data['id'] || targetRow.id,
+                idCol: String(targetRow.data['ID'] || targetRow.data['id'] || targetRow.id),
                 rowNumber: targetRow.rowNumber,
                 colKey: matchedCol,
                 newValue: targetRow.data[matchedCol] ?? '',
@@ -101,7 +96,6 @@ export function createInverseActions(
             idCol: String(addedId),
           });
         } else {
-          // If no explicit ID, target the last row
           inverseActions.push({
             type: 'delete_row',
             rowNumber: rows.length + 1,
@@ -207,7 +201,6 @@ export function createInverseActions(
       case 'delete_column': {
         const targetSheet = action.sheetTitle || sheetTitle;
         if (action.colKey) {
-          // Re-add column and restore values
           inverseActions.push({
             type: 'add_column',
             sheetTitle: targetSheet,
@@ -224,7 +217,7 @@ export function createInverseActions(
           rows.forEach((r) => {
             if (r.data[action.colKey!] !== undefined) {
               restoreUpdates.push({
-                idCol: r.data['ID'] || r.data['id'] || r.id,
+                idCol: String(r.data['ID'] || r.data['id'] || r.id),
                 rowNumber: r.rowNumber,
                 colKey: action.colKey!,
                 newValue: r.data[action.colKey!],
@@ -306,7 +299,7 @@ export function createInverseActions(
 
           rows.forEach((r) => {
             restoreUpdates.push({
-              idCol: r.data['ID'] || r.data['id'] || r.id,
+              idCol: String(r.data['ID'] || r.data['id'] || r.id),
               rowNumber: r.rowNumber,
               colKey: colName,
               newValue: r.data[colName] ?? '',
@@ -325,7 +318,6 @@ export function createInverseActions(
       }
 
       default:
-        // Actions without direct inverse (e.g. format_cells, start_pipeline) do not block rollback
         break;
     }
   }

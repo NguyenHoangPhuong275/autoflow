@@ -1,4 +1,5 @@
 import { useRef, useCallback, useEffect, type RefObject, type MouseEvent } from 'react';
+import { getErrorMessage } from '@/core/utils/errors';
 
 const STORAGE_KEY = 'autoflow_pipeline_positions_v1';
 
@@ -19,8 +20,8 @@ function getStoredPositions(): Record<string, Position> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
-  } catch (err) {
-    console.warn('[useDraggable] Failed to load stored positions:', err);
+  } catch (error: unknown) {
+    console.warn(`Không thể đọc vị trí pipeline: ${getErrorMessage(error)}`);
     return {};
   }
 }
@@ -30,24 +31,19 @@ function savePosition(id: string, pos: Position): void {
     const all = getStoredPositions();
     all[id] = pos;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-  } catch (err) {
-    console.warn('[useDraggable] Failed to save position to localStorage:', err);
+  } catch (error: unknown) {
+    console.warn(`Không thể lưu vị trí pipeline: ${getErrorMessage(error)}`);
   }
 }
 
 export function clearStoredPositions(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
-  } catch (err) {
-    console.warn('[useDraggable] Failed to clear stored positions:', err);
+  } catch (error: unknown) {
+    console.warn(`Không thể xóa vị trí pipeline: ${getErrorMessage(error)}`);
   }
 }
 
-/**
- * Makes an element draggable within its parent container and persists its position across F5 reloads.
- * Returns event handlers to spread onto the target element.
- * Calls `onDragMove` on every frame so external state (e.g. beam paths) can update.
- */
 export function useDraggable(
   id: string,
   ref: RefObject<HTMLElement>,
@@ -62,7 +58,6 @@ export function useDraggable(
     originTop: 0,
   });
 
-  // Restore saved position on mount
   useEffect(() => {
     const el = ref.current;
     if (!el || !id) return;
@@ -72,7 +67,6 @@ export function useDraggable(
       el.style.position = 'relative';
       el.style.left = `${saved.left}px`;
       el.style.top = `${saved.top}px`;
-      // Notify parent to recompute beam paths
       requestAnimationFrame(() => {
         onDragMove?.();
       });
@@ -91,7 +85,6 @@ export function useDraggable(
       const containerRect = container.getBoundingClientRect();
       const elRect = el.getBoundingClientRect();
 
-      // Ensure the element has position: relative so left/top work
       if (!el.style.position || el.style.position === 'static') {
         el.style.position = 'relative';
       }
@@ -123,7 +116,6 @@ export function useDraggable(
         let newLeft = stateRef.current.originLeft + dx;
         let newTop = stateRef.current.originTop + dy;
 
-        // Clamp within container boundaries
         const elCurrentRect = el.getBoundingClientRect();
         const elW = elCurrentRect.width;
         const elH = elCurrentRect.height;
@@ -149,7 +141,6 @@ export function useDraggable(
           el.style.zIndex = '10';
         }
 
-        // Persist final position to localStorage
         if (id) {
           savePosition(id, { left: lastLeft, top: lastTop });
         }

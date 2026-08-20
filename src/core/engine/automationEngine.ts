@@ -21,7 +21,7 @@ export class AutomationEngine {
     public getRows(): DataRow[] {
         return this.rows;
     }
-    public setRows(rawObjects: Record<string, any>[]): DataRow[] {
+    public setRows(rawObjects: Record<string, unknown>[]): DataRow[] {
         this.rows = rawObjects.map((item, idx) => ({
             id: `row-${idx + 1}-${Date.now()}`,
             rowNumber: idx + 1,
@@ -34,7 +34,7 @@ export class AutomationEngine {
         this.rows = [];
         return this.rows;
     }
-    public updateRow(rowId: string, updatedData: Record<string, any>): DataRow[] {
+    public updateRow(rowId: string, updatedData: Record<string, unknown>): DataRow[] {
         this.rows = this.rows.map((r) => {
             if (r.id === rowId) {
                 return { ...r, data: updatedData };
@@ -45,9 +45,9 @@ export class AutomationEngine {
     }
     public batchUpdateRows(updates: Array<{
         rowId: string;
-        updatedData: Record<string, any>;
+        updatedData: Record<string, unknown>;
     }>): DataRow[] {
-        const updateMap = new Map<string, Record<string, any>>();
+        const updateMap = new Map<string, Record<string, unknown>>();
         updates.forEach((u) => updateMap.set(u.rowId, u.updatedData));
         this.rows = this.rows.map((r) => {
             if (updateMap.has(r.id)) {
@@ -68,8 +68,8 @@ export class AutomationEngine {
         }));
         return this.rows;
     }
-    public addRow(customData?: Record<string, any>): DataRow[] {
-        const defaultData: Record<string, any> = {};
+    public addRow(customData?: Record<string, unknown>): DataRow[] {
+        const defaultData: Record<string, unknown> = {};
         const existingHeaders = this.rows.length > 0 ? Object.keys(this.rows[0].data) : ['ID', 'NAME', 'PRICE', 'STOCK', 'TYPE', 'DESC'];
         existingHeaders.forEach((k) => {
             defaultData[k] = '';

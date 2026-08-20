@@ -8,12 +8,23 @@ import { executePipelineAction } from './handlers/pipelineActionHandlers';
 import { executeGmailAction } from './handlers/gmailActionHandlers';
 import { executeDriveAction } from './handlers/driveActionHandlers';
 import { executeDocsAction } from './handlers/docsActionHandlers';
+import { getErrorMessage } from '@/core/utils/errors';
 
 export interface BatchUpdate {
   rowId: string;
-  updatedData: Record<string, any>;
+  updatedData: Record<string, unknown>;
   colKey?: string;
-  newValue?: any;
+  newValue?: unknown;
+}
+
+export interface CellFormatOptions {
+  backgroundColor?: string;
+  fontColor?: string;
+  bold?: boolean;
+  italic?: boolean;
+  fontSize?: number;
+  fontFamily?: string;
+  alignment?: 'LEFT' | 'CENTER' | 'RIGHT';
 }
 
 export interface AgentActionContext {
@@ -24,8 +35,8 @@ export interface AgentActionContext {
   onDeleteColumn?: (sheetTitle: string, colKey: string) => void;
   onFreezeRowsCols?: (sheetTitle: string, frozenRows?: number, frozenCols?: number) => void;
   onSortRange?: (sheetTitle: string, colKey: string, ascending?: boolean) => void;
-  onUpdateRange?: (sheetTitle: string, range: string, values: any[][]) => void;
-  onFormatCells?: (sheetTitle: string, rangeA1?: string, options?: any) => void;
+  onUpdateRange?: (sheetTitle: string, range: string, values: unknown[][]) => void;
+  onFormatCells?: (sheetTitle: string, rangeA1?: string, options?: CellFormatOptions) => void;
   onAutoResizeColumns?: (sheetTitle?: string, startCol?: number, endCol?: number) => void;
   onSetColumnWidth?: (sheetTitle?: string, pixelSize?: number, startCol?: number, endCol?: number) => void;
   onAddChart?: (sheetTitle: string, chartType?: 'COLUMN' | 'BAR' | 'LINE' | 'PIE', title?: string, domainColIndex?: number, seriesColIndex?: number, rowCount?: number, rowIndexOffset?: number) => void;
@@ -34,10 +45,10 @@ export interface AgentActionContext {
   onDeleteSheet?: (sheetTitle: string) => void;
   onDuplicateSheet?: (sourceTitle: string, newTitle?: string) => void;
   onRenameSheet?: (oldTitle: string, newTitle: string) => void;
-  onUpdateRow: (rowId: string, updatedData: Record<string, any>, colKey?: string, newValue?: any) => void;
+  onUpdateRow: (rowId: string, updatedData: Record<string, unknown>, colKey?: string, newValue?: unknown) => void;
   onBatchUpdateRows?: (updates: BatchUpdate[]) => void;
   onBatchDeleteRows?: (rowIds: string[]) => void;
-  onAddRow: (customData?: Record<string, any>) => void;
+  onAddRow: (customData?: Record<string, unknown>) => void;
   onDeleteRow: (rowId: string) => void;
   onClearSheet?: (sheetTitle?: string) => void;
   onSelectSheetTab?: (sheetTitle: string) => void;
@@ -48,7 +59,6 @@ export interface AgentActionContext {
   onClearLogs?: () => void;
   onChangeSpeed?: (ms: number) => void;
   onFetchFromUrl?: (url: string) => void;
-  /** Callback to request user confirmation for destructive actions */
   requestDestructiveConfirmation?: (action: AgentAction) => Promise<boolean>;
 }
 
@@ -67,11 +77,6 @@ export function makeResult(
   };
 }
 
-/**
- * Execute a batch of agent actions by delegating to specialized service handlers.
- * Destructive actions pause for user confirmation before executing.
- * Returns both legacy summaries (string[]) and structured ActionExecutionReport.
- */
 export async function executeAgentActions(
   actions: AgentAction[],
   context: AgentActionContext
@@ -84,7 +89,6 @@ export async function executeAgentActions(
 
   for (const action of actions) {
     try {
-      // ─── Destructive confirmation gate ──────────────────────
       if (DESTRUCTIVE_ACTION_TYPES.has(action.type) && context.requestDestructiveConfirmation) {
         const confirmed = await context.requestDestructiveConfirmation(action);
         if (!confirmed) {
@@ -95,7 +99,6 @@ export async function executeAgentActions(
         }
       }
 
-      // ─── Route to service handlers ──────────────────────────
       const handled =
         (await executeSheetAction(action, actions, context, activeSheetTitle, makeResult)) ||
         (await executeRowAction(action, context, activeSheetTitle, batchUpdates, deletedRowIds, makeResult)) ||
@@ -112,18 +115,18 @@ export async function executeAgentActions(
         summaries.push(msg);
         results.push(makeResult(action, 'failed', msg));
       }
-    } catch (err: any) {
-      console.error(`[executeAgentActions] Error executing action "${action.type}":`, err);
-      const msg = `Lỗi thực thi ${action.type}: ${err.message}`;
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error);
+      console.error(`Lỗi thực thi action "${action.type}": ${errorMessage}`);
+      const msg = `Lỗi thực thi ${action.type}: ${errorMessage}`;
       summaries.push(msg);
       results.push(makeResult(action, 'failed', msg, {
-        error: err.message,
+        error: errorMessage,
         sheetTitle: action.sheetTitle || activeSheetTitle,
       }));
     }
   }
 
-  // ─── Flush batched updates ─────────────────────────────────
   if (batchUpdates.length > 0) {
     if (context.onBatchUpdateRows) {
       context.onBatchUpdateRows(batchUpdates);
@@ -132,7 +135,6 @@ export async function executeAgentActions(
     }
   }
 
-  // ─── Flush batched deletes ─────────────────────────────────
   if (deletedRowIds.length > 0) {
     if (context.onBatchDeleteRows) {
       context.onBatchDeleteRows(deletedRowIds);

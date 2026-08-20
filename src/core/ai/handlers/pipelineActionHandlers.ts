@@ -2,6 +2,7 @@ import type { AgentAction } from '@/core/ai/agentTypes';
 import type { DataRow } from '@/types';
 import type { ActionExecutionResult } from '@/core/ai/actionExecutionTypes';
 import type { AgentActionContext } from '@/core/ai/executeAgentActions';
+import { getErrorMessage } from '@/core/utils/errors';
 
 export async function executePipelineAction(
   action: AgentAction,
@@ -80,10 +81,11 @@ export async function executePipelineAction(
         const msg = `Đã xuất CSV (${rows.length} hàng) — tệp đang tải về.`;
         return { result: makeResult(action, 'success', msg), summary: msg };
       }
-    } catch (e: any) {
-      console.warn('[executeAgentActions] Export CSV failed:', e);
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, 'Không thể xuất CSV.');
+      console.warn(errorMessage);
       const msg = 'Lỗi khi xuất CSV.';
-      return { result: makeResult(action, 'failed', msg, { error: e.message }), summary: msg };
+      return { result: makeResult(action, 'failed', msg, { error: errorMessage }), summary: msg };
     }
   }
 

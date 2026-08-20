@@ -1,7 +1,7 @@
 export interface SampleDataset {
     key: string;
     name: string;
-    rows: Record<string, any>[];
+    rows: Record<string, unknown>[];
 }
 export const SAMPLE_DATASETS: Record<string, SampleDataset> = {
     marketing_leads: {

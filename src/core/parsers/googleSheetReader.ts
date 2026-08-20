@@ -1,5 +1,30 @@
 import { DataRow } from '@/types';
 import { SheetTabInfo } from '@/core/services/googleSyncService';
+import { getErrorMessage, toError } from '@/core/utils/errors';
+
+interface GvizCell {
+  v?: unknown;
+  f?: unknown;
+}
+
+interface GvizColumn {
+  label?: string;
+}
+
+interface GvizRow {
+  c?: GvizCell[];
+}
+
+interface GvizTable {
+  cols?: GvizColumn[];
+  rows?: GvizRow[];
+}
+
+interface GvizResponse {
+  status?: string;
+  errors?: Array<{ detailed_message?: string; message?: string }>;
+  table?: GvizTable;
+}
 
 export class GoogleSheetReader {
   public static extractSpreadsheetId(url: string): string | null {
@@ -71,20 +96,20 @@ export class GoogleSheetReader {
           const jsonEnd = text.lastIndexOf('}');
           if (jsonStart === -1 || jsonEnd === -1) return;
 
-          const gvizData = JSON.parse(text.substring(jsonStart, jsonEnd + 1));
+          const gvizData = JSON.parse(text.substring(jsonStart, jsonEnd + 1)) as GvizResponse;
           const table = gvizData.table;
           if (!table) return;
 
           let tabHeaders: string[] = [];
-          const hasColLabels = table.cols && table.cols.some((c: any) => c.label && c.label.trim() !== '');
+          const hasColLabels = table.cols?.some((column) => column.label?.trim()) ?? false;
 
           if (hasColLabels) {
-            tabHeaders = table.cols.map((c: any, i: number) =>
-              c.label && c.label.trim() !== '' ? c.label.trim() : `Cột_${i + 1}`
+            tabHeaders = (table.cols ?? []).map((column, index) =>
+              column.label?.trim() || `Cột_${index + 1}`
             );
           } else if (table.rows && table.rows.length > 0 && table.rows[0].c) {
-            tabHeaders = table.rows[0].c.map((c: any, i: number) =>
-              c && c.v !== null && c.v !== undefined ? String(c.v).trim() : `Cột_${i + 1}`
+            tabHeaders = table.rows[0].c.map((cell, index) =>
+              cell?.v !== null && cell?.v !== undefined ? String(cell.v).trim() : `Cột_${index + 1}`
             );
           }
 
@@ -139,7 +164,7 @@ export class GoogleSheetReader {
       }
 
       const jsonString = text.substring(jsonStart, jsonEnd + 1);
-      const gvizData = JSON.parse(jsonString);
+      const gvizData = JSON.parse(jsonString) as GvizResponse;
 
       if (gvizData.status === 'error') {
         const errorReason = gvizData.errors?.[0]?.detailed_message || gvizData.errors?.[0]?.message || 'Lỗi từ Google';
@@ -157,28 +182,28 @@ export class GoogleSheetReader {
       }
 
       let headers: string[] = [];
-      let rawRows: any[] = table.rows || [];
+      let rawRows = table.rows || [];
 
-      const hasColLabels = table.cols && table.cols.some((c: any) => c.label && c.label.trim() !== '');
+      const hasColLabels = table.cols?.some((column) => column.label?.trim()) ?? false;
       if (hasColLabels) {
-        headers = table.cols.map((c: any, i: number) =>
-          c.label && c.label.trim() !== '' ? c.label.trim() : `Cột_${i + 1}`
+        headers = (table.cols ?? []).map((column, index) =>
+          column.label?.trim() || `Cột_${index + 1}`
         );
       } else if (rawRows.length > 0 && rawRows[0].c) {
-        headers = rawRows[0].c.map((c: any, i: number) =>
-          c && c.v !== null && c.v !== undefined ? String(c.v).trim() : `Cột_${i + 1}`
+        headers = rawRows[0].c.map((cell, index) =>
+          cell?.v !== null && cell?.v !== undefined ? String(cell.v).trim() : `Cột_${index + 1}`
         );
         rawRows = rawRows.slice(1);
       }
 
       const parsedRows: DataRow[] = [];
-      rawRows.forEach((r: any, rowIdx: number) => {
-        if (!r.c) return;
-        const rowData: Record<string, any> = {};
+      rawRows.forEach((row, rowIndex) => {
+        if (!row.c) return;
+        const rowData: Record<string, unknown> = {};
         let hasValue = false;
 
-        r.c.forEach((cell: any, colIdx: number) => {
-          const colName = headers[colIdx] || `Cột_${colIdx + 1}`;
+        row.c.forEach((cell, columnIndex) => {
+          const colName = headers[columnIndex] || `Cột_${columnIndex + 1}`;
           const val = cell ? (cell.f !== undefined ? cell.f : cell.v) : '';
           rowData[colName] = val !== null && val !== undefined ? val : '';
           if (val !== '' && val !== null && val !== undefined) {
@@ -188,7 +213,7 @@ export class GoogleSheetReader {
 
         if (hasValue) {
           parsedRows.push({
-            id: `gs-${rowIdx + 1}-${Date.now()}`,
+            id: `gs-${rowIndex + 1}-${Date.now()}`,
             rowNumber: parsedRows.length + 1,
             data: rowData,
             status: 'pending',
@@ -202,9 +227,9 @@ export class GoogleSheetReader {
         defaultTitle: targetTitle || 'Sheet1',
         discoveredTabs,
       };
-    } catch (err: any) {
-      console.error('[GoogleSheetReader] Error fetching Google Sheet:', err);
-      throw err instanceof Error ? err : new Error(String(err));
+    } catch (error: unknown) {
+      console.error(`Lỗi tải Google Sheet: ${getErrorMessage(error)}`);
+      throw toError(error);
     }
   }
 }

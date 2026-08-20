@@ -14,12 +14,16 @@ import { AGENT_BRAND } from '@/core/ai/agentBrand';
 import { CommandLineIcon as TerminalIcon, CpuChipIcon as Bot } from '@heroicons/react/24/outline';
 import type { EmailSummary } from '@/core/google/services/googleGmailService';
 import type { GoogleDocContent } from '@/core/google/services/googleDocsService';
+import { GoogleDocsService } from '@/core/google/services/googleDocsService';
+import { getErrorMessage } from '@/core/utils/errors';
+import type { PermittedDocument } from '@/core/ai/agentTypes';
 
 export const App: React.FC = () => {
   const [rightPanelTab, setRightPanelTab] = useState<'chat' | 'terminal'>('chat');
   const [isDriveOpen, setIsDriveOpen] = useState(false);
   const [isGmailOpen, setIsGmailOpen] = useState(false);
   const [isDocsOpen, setIsDocsOpen] = useState(false);
+  const [importedDocuments, setImportedDocuments] = useState<PermittedDocument[]>([]);
 
   const { theme, setTheme } = useTheme();
   const {
@@ -34,6 +38,7 @@ export const App: React.FC = () => {
     isLoading,
     sheetTabs,
     allSheetHeaders,
+    allSheetRows,
     activeSheetTitle,
     selectSheetTab,
     loadFile,
@@ -91,11 +96,29 @@ export const App: React.FC = () => {
   };
 
   const handleImportDoc = (doc: GoogleDocContent) => {
+    setImportedDocuments((previous) => [
+      ...previous.filter((document) => document.id !== doc.documentId),
+      {
+        id: doc.documentId,
+        name: `Docs: ${doc.title}`,
+        type: 'text_note',
+        isGranted: true,
+        contentSummary: doc.bodyText,
+      },
+    ]);
     addRow({
       id: doc.documentId,
       doc_title: doc.title,
       doc_content: doc.bodyText.slice(0, 500),
     });
+  };
+
+  const handleSelectDocFromDrive = async (documentId: string) => {
+    try {
+      handleImportDoc(await GoogleDocsService.fetchDocument(documentId));
+    } catch (error: unknown) {
+      console.error(getErrorMessage(error, 'Không thể nạp Google Docs từ Drive.'));
+    }
   };
 
   return (
@@ -180,6 +203,8 @@ export const App: React.FC = () => {
                   rows={rows}
                   sheetTabs={sheetTabs}
                   allSheetHeaders={allSheetHeaders}
+                  allSheetRows={allSheetRows}
+                  externalDocuments={importedDocuments}
                   activeSheetTitle={activeSheetTitle}
                   onUpdateHeaders={updateHeaders}
                   onAddColumn={addColumn}
@@ -219,11 +244,11 @@ export const App: React.FC = () => {
         </div>
       </div>
 
-      {/* Google Workspace Interactive Modals */}
       <DrivePickerModal
         isOpen={isDriveOpen}
         onClose={() => setIsDriveOpen(false)}
         onSelectSheet={handleSelectSheetFromDrive}
+        onSelectDoc={handleSelectDocFromDrive}
       />
 
       <GmailExplorerModal
