@@ -1,5 +1,5 @@
-import { APP_CONFIG } from '@/core/config';
-import type { GoogleSession } from '@/core/google/types';
+import { APP_CONFIG } from '../../config.ts';
+import type { GoogleSession } from '../types.ts';
 const STORAGE_KEY = 'autoflow_google_session';
 export class GoogleAuthService {
     private static session: GoogleSession | null = null;
@@ -101,7 +101,7 @@ export class GoogleAuthService {
                 }
                 const client = (window as any).google.accounts.oauth2.initTokenClient({
                     client_id: clientId,
-                    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/userinfo.email',
+                    scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/drive.readonly https://www.googleapis.com/auth/documents.readonly https://www.googleapis.com/auth/gmail.readonly https://www.googleapis.com/auth/userinfo.email',
                     callback: async (tokenResponse: any) => {
                         if (tokenResponse.error) {
                             reject(new Error(tokenResponse.error_description || tokenResponse.error));
