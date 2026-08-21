@@ -1,8 +1,10 @@
 import { APP_CONFIG } from '@/core/config';
 import { readJson } from '@/core/utils/errors';
 export interface DeepSeekMessage {
-    role: 'system' | 'user' | 'assistant';
+    role: 'system' | 'user' | 'assistant' | 'tool';
     content: string;
+    tool_call_id?: string;
+    tool_calls?: DeepSeekToolCall[];
 }
 export interface DeepSeekToolDefinition {
     type: 'function';

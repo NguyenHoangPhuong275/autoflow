@@ -55,6 +55,7 @@ export const App: React.FC = () => {
     addChart,
     clearCharts,
     createSheet,
+    createSpreadsheet,
     deleteSheet,
     duplicateSheet,
     renameSheet,
@@ -218,6 +219,7 @@ export const App: React.FC = () => {
                   onAddChart={addChart}
                   onClearCharts={clearCharts}
                   onCreateSheet={createSheet}
+                  onCreateSpreadsheet={createSpreadsheet}
                   onDeleteSheet={deleteSheet}
                   onDuplicateSheet={duplicateSheet}
                   onRenameSheet={renameSheet}

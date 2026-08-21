@@ -9,10 +9,10 @@ export const GMAIL_TOOLS: DeepSeekToolDefinition[] = [
   tool('read_email', 'Đọc toàn bộ nội dung chi tiết của một email cụ thể qua messageId.', objectSchema({
     messageId: { type: 'string', description: 'ID của bức thư cần đọc' },
   }, ['messageId'])),
-  tool('send_email', 'Soạn và gửi email trực tiếp qua Gmail API.', objectSchema({
+  tool('send_email', 'Soạn và gửi email chuyên nghiệp trực tiếp qua Gmail API. Tiêu đề phải rõ ràng; nội dung phải có lời mở đầu, tóm tắt, chi tiết, kết quả hoặc bước tiếp theo và lời kết phù hợp.', objectSchema({
     to: { type: 'string', description: 'Địa chỉ email người nhận (ví dụ abc@gmail.com)' },
-    subject: { type: 'string', description: 'Tiêu đề bức thư' },
-    body: { type: 'string', description: 'Nội dung thư' },
+    subject: { type: 'string', description: 'Tiêu đề chuyên nghiệp, ngắn gọn, đúng trọng tâm, không emoji' },
+    body: { type: 'string', description: 'Nội dung thư có cấu trúc rõ ràng: lời chào, tóm tắt, nội dung chính, kết quả hoặc bước tiếp theo, lời kết; không viết kiểu chat sơ sài' },
     cc: { type: 'string', description: 'Địa chỉ email CC (nếu có)' },
   }, ['to', 'subject', 'body'])),
   tool('trash_email', 'Chuyển một email vào Thùng rác (Trash) trong Gmail.', objectSchema({

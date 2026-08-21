@@ -2,6 +2,11 @@ import type { DeepSeekToolDefinition } from '@/core/services/deepSeekService';
 import { tool, objectSchema } from './toolSchemaHelper';
 
 export const SHEET_TOOLS: DeepSeekToolDefinition[] = [
+  tool('create_spreadsheet', 'Tạo một file Google Sheets hoàn toàn mới trong Google Drive, tương đương chọn "Bảng tính trống". Dùng khi người dùng yêu cầu tạo bảng tính/file mới, không dùng để thêm tab vào file hiện tại.', objectSchema({
+    title: { type: 'string', description: 'Tên file Google Sheets mới' },
+    sheetTitle: { type: 'string', description: 'Tên tab đầu tiên trong file mới' },
+    headers: { type: 'array', items: { type: 'string' }, description: 'Danh sách cột khởi tạo cho tab đầu tiên' },
+  }, ['title'])),
   tool('create_sheet', 'Tạo một trang tính (Sheet Tab) mới trong file Google Sheets / Excel, có thể kèm danh sách cột khởi tạo.', objectSchema({
     sheetTitle: { type: 'string', description: 'Tên sheet mới cần tạo' },
     headers: {
@@ -70,17 +75,17 @@ export const SHEET_TOOLS: DeepSeekToolDefinition[] = [
     fillDown: { type: 'boolean', description: 'Nếu true, tự động kéo và tịnh tiến công thức từ dòng rowNumber xuống toàn bộ các dòng còn lại trong bảng' },
     endRow: { type: 'integer', description: 'Dòng kết thúc khi kéo công thức (tùy chọn)' },
   }, ['colKey', 'formula'])),
-  tool('format_cells', 'Định dạng màu nền, màu chữ, in đậm, căn lề ô/cột/hàng.', objectSchema({
+  tool('format_cells', 'Định dạng màu nền, màu chữ, in đậm, căn lề ô/cột/hàng. BẮT BUỘC phải truyền ít nhất một trong các thuộc tính: backgroundColor, fontColor, bold, fontSize, fontFamily, alignment. Không gọi tool này nếu không có giá trị định dạng cụ thể.', objectSchema({
     sheetTitle: { type: 'string', description: 'Tên sheet' },
-    range: { type: 'string', description: 'Tọa độ ô cần định dạng, ví dụ "1:1" cho hàng tiêu đề, "A:A" cho cột A' },
-    backgroundColor: { type: 'string', description: 'Mã màu nền HEX (ví dụ #0f172a)' },
-    fontColor: { type: 'string', description: 'Mã màu chữ HEX (ví dụ #38bdf8)' },
+    range: { type: 'string', description: 'Tọa độ ô cần định dạng, ví dụ "1:1" cho hàng tiêu đề, "2:2" cho hàng 2, "A:A" cho cột A' },
+    backgroundColor: { type: 'string', description: 'Mã màu nền HEX (ví dụ #0f172a, #1e3a5f, #2d6a4f)' },
+    fontColor: { type: 'string', description: 'Mã màu chữ HEX (ví dụ #ffffff, #38bdf8, #f0f0f0)' },
     bold: { type: 'boolean', description: 'In đậm' },
     italic: { type: 'boolean', description: 'In nghiêng' },
     fontSize: { type: 'integer', description: 'Cỡ chữ' },
     fontFamily: { type: 'string', description: 'Font chữ (ví dụ Roboto, Montserrat)' },
     alignment: { type: 'string', enum: ['LEFT', 'CENTER', 'RIGHT'] },
-  })),
+  }, ['backgroundColor'])),
   tool('auto_resize_columns', 'Tự động căn chỉnh độ rộng cột vừa vặn với nội dung.', objectSchema({
     sheetTitle: { type: 'string', description: 'Tên sheet' },
   })),

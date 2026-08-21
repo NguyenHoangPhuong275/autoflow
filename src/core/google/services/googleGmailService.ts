@@ -69,13 +69,55 @@ function decodeBase64Utf8(value: string): string {
   }
 }
 
-function encodeBase64Utf8(value: string): string {
+function encodeBase64UrlUtf8(value: string): string {
   const bytes = new TextEncoder().encode(value);
   const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
   return btoa(binary)
     .replace(/\+/g, '-')
     .replace(/\//g, '_')
     .replace(/=+$/, '');
+}
+
+function encodeBase64HeaderUtf8(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  const binary = Array.from(bytes, (byte) => String.fromCharCode(byte)).join('');
+  return btoa(binary);
+}
+
+function sanitizeHeader(value: string): string {
+  return value.replace(/[\r\n]+/g, ' ').trim();
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function formatProfessionalEmailHtml(subject: string, body: string): string {
+  const content = body.split(/\r?\n/).map((rawLine) => {
+    const line = rawLine.trim().replace(/\*\*/g, '');
+    if (!line) return '<div style="height:12px"></div>';
+    const safeLine = escapeHtml(line).replace(
+      /(https?:\/\/[^\s<]+)/g,
+      '<a href="$1" style="color:#2563eb;text-decoration:none">$1</a>',
+    );
+    if (/^#{1,3}\s+/.test(line)) {
+      return `<h2 style="margin:24px 0 10px;color:#0f172a;font-size:18px">${safeLine.replace(/^#{1,3}\s+/, '')}</h2>`;
+    }
+    if ((line.endsWith(':') || line === line.toUpperCase()) && line.length <= 100) {
+      return `<h3 style="margin:20px 0 8px;color:#1e293b;font-size:15px">${safeLine}</h3>`;
+    }
+    if (/^[-•]\s+/.test(line)) {
+      return `<div style="margin:6px 0 6px 18px"><span style="color:#2563eb">•</span> ${safeLine.replace(/^[-•]\s+/, '')}</div>`;
+    }
+    return `<p style="margin:7px 0">${safeLine}</p>`;
+  }).join('');
+
+  return `<!doctype html><html><body style="margin:0;background:#f1f5f9;font-family:Arial,'Helvetica Neue',sans-serif;color:#334155"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f1f5f9;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:680px;background:#ffffff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden"><tr><td style="padding:24px 30px;background:#0f172a;color:#ffffff"><div style="font-size:12px;letter-spacing:1.4px;text-transform:uppercase;color:#93c5fd">AutoFlow Workspace</div><div style="margin-top:8px;font-size:22px;font-weight:700;line-height:1.35">${escapeHtml(subject)}</div></td></tr><tr><td style="padding:28px 30px;font-size:14px;line-height:1.7">${content}</td></tr><tr><td style="padding:18px 30px;border-top:1px solid #e2e8f0;background:#f8fafc;color:#64748b;font-size:12px">Email được tạo tự động bởi AutoFlow. Vui lòng kiểm tra dữ liệu trước khi sử dụng cho quyết định quan trọng.</td></tr></table></td></tr></table></body></html>`;
 }
 
 function htmlToText(html: string): string {
@@ -203,17 +245,34 @@ export class GoogleGmailService extends GoogleAuthService {
     cc?: string;
   }): Promise<SendEmailResult> {
     const token = this.requireAccessToken();
-    const encodedSubject = `=?utf-8?B?${encodeBase64Utf8(params.subject)}?=`;
-    const message = [
-      `To: ${params.to}`,
-      params.cc ? `Cc: ${params.cc}` : '',
+    const subject = sanitizeHeader(params.subject);
+    const recipient = sanitizeHeader(params.to);
+    const cc = params.cc ? sanitizeHeader(params.cc) : '';
+    const encodedSubject = `=?UTF-8?B?${encodeBase64HeaderUtf8(subject)}?=`;
+    const boundary = `autoflow_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const htmlBody = formatProfessionalEmailHtml(subject, params.body);
+    const messageParts: Array<string | null> = [
+      `To: ${recipient}`,
+      cc ? `Cc: ${cc}` : null,
       `Subject: ${encodedSubject}`,
       'MIME-Version: 1.0',
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      '',
+      `--${boundary}`,
       'Content-Type: text/plain; charset=UTF-8',
       'Content-Transfer-Encoding: 8bit',
       '',
       params.body,
-    ].filter(Boolean).join('\r\n');
+      '',
+      `--${boundary}`,
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: 8bit',
+      '',
+      htmlBody,
+      '',
+      `--${boundary}--`,
+    ];
+    const message = messageParts.filter((line): line is string => line !== null).join('\r\n');
 
     const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
       method: 'POST',
@@ -221,7 +280,7 @@ export class GoogleGmailService extends GoogleAuthService {
         Authorization: `Bearer ${token}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ raw: encodeBase64Utf8(message) }),
+      body: JSON.stringify({ raw: encodeBase64UrlUtf8(message) }),
     });
 
     if (!response.ok) {

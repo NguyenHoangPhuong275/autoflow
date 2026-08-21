@@ -94,7 +94,7 @@ while ((match = toolNameRegex.exec(toolsSrc)) !== null) {
 }
 
 const EXPECTED_TOOLS = [
-  'create_sheet', 'delete_sheet', 'duplicate_sheet', 'rename_sheet',
+  'create_spreadsheet', 'create_sheet', 'delete_sheet', 'duplicate_sheet', 'rename_sheet',
   'switch_sheet', 'clear_sheet', 'update_headers', 'add_column',
   'delete_column', 'freeze_rows_cols', 'sort_range', 'update_range',
   'set_formula', 'format_cells', 'auto_resize_columns', 'set_column_width',
@@ -167,7 +167,7 @@ assert('GoogleSyncService extends GoogleFormattingService', syncSrc.includes('ex
 const EXPECTED_AUTH_METHODS    = ['init', 'getSession', 'getAccessToken', 'getUserEmail', 'logout', 'loginWithGoogle'];
 const EXPECTED_READ_METHODS    = ['fetchSheetMetadata', 'fetchSheet'];
 const EXPECTED_WRITE_METHODS   = ['updateHeaders', 'updateCell', 'appendRow', 'deleteRowsByTitle', 'clearSheet'];
-const EXPECTED_STRUCT_METHODS  = ['addSheetTab', 'deleteSheetTab', 'duplicateSheetTab', 'renameSheetTab', 'freezeRowsCols', 'sortRange', 'updateRangeValues', 'addColumn', 'deleteColumn'];
+const EXPECTED_STRUCT_METHODS  = ['createSpreadsheet', 'addSheetTab', 'deleteSheetTab', 'duplicateSheetTab', 'renameSheetTab', 'freezeRowsCols', 'sortRange', 'updateRangeValues', 'addColumn', 'deleteColumn'];
 const EXPECTED_FORMAT_METHODS  = ['formatCells', 'addChart', 'clearCharts', 'autoResizeColumns', 'setColumnWidth', 'fetchSheetChartIds', 'fetchSheetHeaderNames', 'fetchSheetFormat'];
 
 for (const m of EXPECTED_AUTH_METHODS)   assert(`Auth: ${m}()`,    authSrc.includes(m));

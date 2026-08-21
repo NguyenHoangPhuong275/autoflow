@@ -3,7 +3,7 @@ import type { DeepSeekToolCall } from '@/core/services/deepSeekService';
 import { getErrorMessage, isRecord } from '@/core/utils/errors';
 
 export const AGENT_ACTION_TYPES = new Set<AgentAction['type']>([
-    'create_sheet', 'delete_sheet', 'duplicate_sheet', 'rename_sheet', 'switch_sheet', 'clear_sheet',
+    'create_spreadsheet', 'create_sheet', 'delete_sheet', 'duplicate_sheet', 'rename_sheet', 'switch_sheet', 'clear_sheet',
     'update_headers', 'add_column', 'delete_column', 'freeze_rows_cols', 'sort_range', 'update_range',
     'set_formula', 'format_cells', 'auto_resize_columns', 'set_column_width', 'add_chart', 'clear_charts',
     'update_row', 'batch_update_rows', 'add_row', 'batch_add_rows', 'delete_row', 'batch_delete_rows',

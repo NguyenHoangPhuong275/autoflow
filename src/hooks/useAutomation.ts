@@ -6,11 +6,36 @@ import { GoogleSheetReader } from '@/core/parsers/googleSheetReader';
 import { GoogleSyncService, SheetTabInfo } from '@/core/services/googleSyncService';
 import { getErrorMessage } from '@/core/utils/errors';
 import type { SheetDataIndex } from '@/core/ai/agentTypes';
-const DEFAULT_REAL_SHEET_URL = 'https://docs.google.com/spreadsheets/d/1afOya-FzRWZK9wrstjeXlVWvf-ZInvWO9XThNbh44w8/edit?gid=0#gid=0';
+
+const ACTIVE_SPREADSHEET_URL_KEY = 'autoflow_active_spreadsheet_url';
+
+function readActiveSpreadsheetUrl(): string {
+    if (typeof window === 'undefined') return '';
+    try {
+        return sessionStorage.getItem(ACTIVE_SPREADSHEET_URL_KEY) || '';
+    } catch (error: unknown) {
+        console.warn(`Không thể khôi phục workbook đang hoạt động: ${getErrorMessage(error)}`);
+        return '';
+    }
+}
+
+function storeActiveSpreadsheetUrl(url: string): void {
+    if (typeof window === 'undefined') return;
+    try {
+        if (url) sessionStorage.setItem(ACTIVE_SPREADSHEET_URL_KEY, url);
+        else sessionStorage.removeItem(ACTIVE_SPREADSHEET_URL_KEY);
+    } catch (error: unknown) {
+        console.warn(`Không thể lưu workbook đang hoạt động: ${getErrorMessage(error)}`);
+    }
+}
+
 export function useAutomation() {
     const engineRef = useRef<AutomationEngine>(new AutomationEngine());
     const engine = engineRef.current;
-    const [url, setUrl] = useState<string>(DEFAULT_REAL_SHEET_URL);
+    const initialUrlRef = useRef(readActiveSpreadsheetUrl());
+    const [url, setUrl] = useState<string>(initialUrlRef.current);
+    const urlRef = useRef(initialUrlRef.current);
+    const spreadsheetIdRef = useRef<string | null>(GoogleSheetReader.extractSpreadsheetId(initialUrlRef.current));
     const [activeSourceId, setActiveSourceId] = useState<DataSourceId>('google_sheets');
     const [stage, setStage] = useState<PipelineStage>('ready');
     const [rows, setRows] = useState<DataRow[]>([]);
@@ -20,21 +45,10 @@ export function useAutomation() {
     const [stats, setStats] = useState<ExecutionStats>(engine.getStats());
     const [speed, setSpeed] = useState<number>(600);
     const [isLoading, setIsLoading] = useState<boolean>(false);
-    const [sheetTabs, setSheetTabs] = useState<SheetTabInfo[]>([
-        { title: 'Products', sheetId: 0 },
-        { title: 'Users', sheetId: 1 },
-        { title: 'Orders', sheetId: 2 },
-        { title: 'Accounts', sheetId: 3 },
-        { title: 'Sold', sheetId: 4 },
-    ]);
-    const [allSheetHeaders, setAllSheetHeaders] = useState<Record<string, string[]>>({
-        Products: ['id', 'name', 'price', 'stock', 'type', 'desc'],
-        Orders: ['order_id', 'payos_code', 'user_id', 'username', 'product', 'quantity', 'unit_price', 'amount', 'status', 'time'],
-        Users: ['user_id', 'username', 'time'],
-        Accounts: ['product_id', 'account', 'password', '2fa', 'status'],
-        Sold: ['product_id', 'account', 'password', '2fa', 'status'],
-    });
-    const [activeSheetTitle, setActiveSheetTitle] = useState<string>('Products');
+    const [sheetTabs, setSheetTabs] = useState<SheetTabInfo[]>([]);
+    const [allSheetHeaders, setAllSheetHeaders] = useState<Record<string, string[]>>({});
+    const [activeSheetTitle, setActiveSheetTitle] = useState<string>('Sheet1');
+    const activeSheetTitleRef = useRef('Sheet1');
     const appendLog = useCallback((id: string, level: LogEntry['level'], message: string) => {
         setLogs((prev) => [
             ...prev,
@@ -46,6 +60,9 @@ export function useAutomation() {
             },
         ]);
     }, []);
+    useEffect(() => {
+        urlRef.current = url;
+    }, [url]);
     useEffect(() => {
         engine.onStateChange = (newStats, newStage) => {
             setStats(newStats);
@@ -78,6 +95,19 @@ export function useAutomation() {
                 if (!spreadsheetId) {
                     throw new Error('Link Google Sheet không hợp lệ.');
                 }
+                if (spreadsheetIdRef.current !== spreadsheetId) {
+                    spreadsheetIdRef.current = spreadsheetId;
+                    setSheetTabs([]);
+                    setAllSheetHeaders({});
+                    setAllSheetRows({});
+                    allSheetRowsRef.current = {};
+                    engine.clearRows();
+                    setRows([]);
+                    setStats(engine.getStats());
+                }
+                urlRef.current = targetUrl;
+                setUrl(targetUrl);
+                storeActiveSpreadsheetUrl(targetUrl);
                 let tabs: SheetTabInfo[] = [];
                 if (GoogleSyncService.getAccessToken()) {
                     tabs = await GoogleSyncService.fetchSheetMetadata(spreadsheetId);
@@ -85,11 +115,10 @@ export function useAutomation() {
                 if (tabs.length === 0) {
                     tabs = await GoogleSheetReader.discoverSheetTabs(spreadsheetId);
                 }
-                if (tabs.length > 0) {
-                    setSheetTabs(tabs);
-                }
-                const selectedTab = sheetTitle || (tabs.length > 0 ? tabs[0].title : undefined) || 'Products';
+                setSheetTabs(tabs);
+                const selectedTab = sheetTitle || (tabs.length > 0 ? tabs[0].title : undefined) || 'Sheet1';
                 setActiveSheetTitle(selectedTab);
+                activeSheetTitleRef.current = selectedTab;
                 let realRows: DataRow[] = [];
                 if (GoogleSyncService.getAccessToken()) {
                     try {
@@ -113,6 +142,7 @@ export function useAutomation() {
                 }
                 const tabNames = tabs.map((t) => t.title);
                 GoogleSheetReader.fetchAllSheetHeaders(spreadsheetId, tabNames).then((headersMap) => {
+                    if (spreadsheetIdRef.current !== spreadsheetId) return;
                     if (Object.keys(headersMap).length > 0) {
                         setAllSheetHeaders((prev) => ({ ...prev, ...headersMap }));
                     }
@@ -125,6 +155,7 @@ export function useAutomation() {
                             : (await GoogleSheetReader.fetchRealGoogleSheet(targetUrl, title)).rows;
                         return [title, tabRows] as const;
                     })).then((results) => {
+                        if (spreadsheetIdRef.current !== spreadsheetId) return;
                         const loadedEntries = results
                             .filter((result): result is PromiseFulfilledResult<readonly [string, DataRow[]]> => result.status === 'fulfilled')
                             .map((result) => result.value);
@@ -159,11 +190,12 @@ export function useAutomation() {
     }, [engine]);
     const selectSheetTab = useCallback((sheetTitle: string) => {
         setActiveSheetTitle(sheetTitle);
-        fetchFromUrl(url, sheetTitle);
-    }, [fetchFromUrl, url]);
+        activeSheetTitleRef.current = sheetTitle;
+        fetchFromUrl(urlRef.current, sheetTitle);
+    }, [fetchFromUrl]);
     useEffect(() => {
-        if (DEFAULT_REAL_SHEET_URL) {
-            fetchFromUrl(DEFAULT_REAL_SHEET_URL, 'Products');
+        if (initialUrlRef.current) {
+            fetchFromUrl(initialUrlRef.current);
         }
     }, [fetchFromUrl]);
     const loadFile = useCallback(async (file: File) => {
@@ -172,14 +204,15 @@ export function useAutomation() {
         try {
             const parsedRows = await ExcelParser.parseFile(file);
             const title = file.name.replace(/\.[^/.]+$/, '');
+            spreadsheetIdRef.current = null;
+            storeActiveSpreadsheetUrl('');
             setSheetTabs([{ title, sheetId: 0 }]);
             setAllSheetRows({ [title]: parsedRows });
             allSheetRowsRef.current = { [title]: parsedRows };
             setActiveSheetTitle(title);
-            if (parsedRows.length > 0) {
-                const fileHeaders = Object.keys(parsedRows[0].data);
-                setAllSheetHeaders((prev) => ({ ...prev, [title]: fileHeaders }));
-            }
+            activeSheetTitleRef.current = title;
+            const fileHeaders = parsedRows.length > 0 ? Object.keys(parsedRows[0].data) : [];
+            setAllSheetHeaders({ [title]: fileHeaders });
             engine.setRows(parsedRows.map((r) => r.data));
             setRows(engine.getRows());
             setStats(engine.getStats());
@@ -198,7 +231,7 @@ export function useAutomation() {
     }, [engine]);
     const updateHeaders = useCallback((sheetTitle: string, newHeaders: string[]) => {
         const targetTitle = sheetTitle || activeSheetTitle;
-        const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
+        const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(urlRef.current);
         setAllSheetHeaders((prev) => ({ ...prev, [targetTitle]: newHeaders }));
         if (spreadsheetId) {
             if (!GoogleSyncService.getAccessToken()) {
@@ -215,29 +248,43 @@ export function useAutomation() {
             });
         }
     }, [url, activeSheetTitle, fetchFromUrl]);
-    const createSheet = useCallback((sheetTitle: string, initialHeaders: string[] = ['id', 'name']) => {
-        const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
+    const createSpreadsheet = useCallback(async (title: string, sheetTitle: string = 'Sheet1', headers: string[] = []) => {
+        const created = await GoogleSyncService.createSpreadsheet(title, sheetTitle, headers);
+        urlRef.current = created.spreadsheetUrl;
+        setUrl(created.spreadsheetUrl);
+        await fetchFromUrl(created.spreadsheetUrl, sheetTitle);
+        appendLog(`spreadsheet-${Date.now()}`, 'success', `Đã tạo file Google Sheets mới "${title}".`);
+        return created;
+    }, [fetchFromUrl, appendLog]);
+    const createSheet = useCallback(async (sheetTitle: string, initialHeaders: string[] = ['id', 'name']) => {
+        const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(urlRef.current);
         const newTab: SheetTabInfo = { title: sheetTitle, sheetId: Date.now() };
         setSheetTabs((prev) => (prev.some((t) => t.title.toLowerCase() === sheetTitle.toLowerCase()) ? prev : [...prev, newTab]));
         setAllSheetHeaders((prev) => ({ ...prev, [sheetTitle]: initialHeaders }));
         setActiveSheetTitle(sheetTitle);
+        activeSheetTitleRef.current = sheetTitle;
         engine.setRows([]);
         setRows([]);
+        setAllSheetRows((previous) => {
+            const next = { ...previous, [sheetTitle]: [] };
+            allSheetRowsRef.current = next;
+            return next;
+        });
         if (spreadsheetId) {
             if (!GoogleSyncService.getAccessToken()) {
                 appendLog(`warn-auth-${Date.now()}`, 'warn', `⚠️ Chưa Đăng nhập Google: Đã tạo trang "${sheetTitle}" trên giao diện. Hãy bấm "Đăng nhập Google" để tạo trên Google Sheet thật!`);
                 return;
             }
-            GoogleSyncService.addSheetTab(spreadsheetId, sheetTitle, initialHeaders)
-                .then((sheetId) => {
+            try {
+                const sheetId = await GoogleSyncService.addSheetTab(spreadsheetId, sheetTitle, initialHeaders);
                 appendLog(`sync-sheet-add-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã tạo thành công trang tính mới "${sheetTitle}" trên Google Sheet thật (ID: ${sheetId}).`);
-                void fetchFromUrl(url, sheetTitle);
-            })
-                .catch((err) => {
-                appendLog(`sync-sheet-err-${Date.now()}`, 'error', `Lỗi tạo trang mới trên Google Sheet: ${err.message}`);
-            });
+            } catch (error: unknown) {
+                const message = getErrorMessage(error, 'Không thể tạo trang tính mới.');
+                appendLog(`sync-sheet-err-${Date.now()}`, 'error', `Lỗi tạo trang mới trên Google Sheet: ${message}`);
+                throw error;
+            }
         }
-    }, [url, engine, fetchFromUrl]);
+    }, [url, engine, appendLog]);
     const deleteSheet = useCallback((sheetTitle: string) => {
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
         setSheetTabs((prev) => prev.filter((t) => t.title.toLowerCase() !== sheetTitle.toLowerCase()));
@@ -323,17 +370,18 @@ export function useAutomation() {
             });
         }
     }, [url, activeSheetTitle, allSheetHeaders, fetchFromUrl]);
-    const freezeRowsCols = useCallback((sheetTitle: string, frozenRows: number = 1, frozenCols: number = 0) => {
+    const freezeRowsCols = useCallback(async (sheetTitle: string, frozenRows: number = 1, frozenCols: number = 0) => {
         const targetTitle = sheetTitle || activeSheetTitle;
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
-            GoogleSyncService.freezeRowsCols(spreadsheetId, targetTitle, frozenRows, frozenCols)
-                .then(() => {
+            try {
+                await GoogleSyncService.freezeRowsCols(spreadsheetId, targetTitle, frozenRows, frozenCols);
                 appendLog(`sync-frz-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã cố định ${frozenRows} hàng đầu và ${frozenCols} cột trên trang "${targetTitle}".`);
-            })
-                .catch((err) => {
-                appendLog(`sync-frz-err-${Date.now()}`, 'error', `Lỗi cố định hàng/cột: ${err.message}`);
-            });
+            } catch (error: unknown) {
+                const message = getErrorMessage(error, 'Không thể cố định hàng/cột.');
+                appendLog(`sync-frz-err-${Date.now()}`, 'error', `Lỗi cố định hàng/cột: ${message}`);
+                throw error;
+            }
         }
     }, [url, activeSheetTitle]);
     const sortRange = useCallback((sheetTitle: string, colKey: string, ascending: boolean = true) => {
@@ -366,7 +414,7 @@ export function useAutomation() {
             });
         }
     }, [url, activeSheetTitle, fetchFromUrl]);
-    const formatCells = useCallback((sheetTitle: string, rangeA1: string = '1:1', options: {
+    const formatCells = useCallback(async (sheetTitle: string, rangeA1: string = '1:1', options: {
         backgroundColor?: string;
         fontColor?: string;
         bold?: boolean;
@@ -378,13 +426,18 @@ export function useAutomation() {
         const targetTitle = sheetTitle || activeSheetTitle;
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
-            GoogleSyncService.formatCells(spreadsheetId, targetTitle, rangeA1, options)
-                .then(() => {
-                appendLog(`sync-fmt-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã định dạng màu sắc/font dải ô "${rangeA1}" trên trang "${targetTitle}".`);
-            })
-                .catch((err) => {
-                appendLog(`sync-fmt-err-${Date.now()}`, 'error', `Lỗi định dạng ô: ${err.message}`);
-            });
+            try {
+                const applied = await GoogleSyncService.formatCells(spreadsheetId, targetTitle, rangeA1, options);
+                if (applied) {
+                    appendLog(`sync-fmt-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã định dạng màu sắc/font dải ô "${rangeA1}" trên trang "${targetTitle}".`);
+                } else {
+                    appendLog(`sync-fmt-noop-${Date.now()}`, 'warn', `Không có thuộc tính định dạng nào được chỉ định cho dải ô "${rangeA1}" trên trang "${targetTitle}". Hãy chỉ định backgroundColor, fontColor, bold, fontSize, v.v.`);
+                }
+            } catch (error: unknown) {
+                const message = getErrorMessage(error, 'Không thể định dạng ô.');
+                appendLog(`sync-fmt-err-${Date.now()}`, 'error', `Lỗi định dạng ô: ${message}`);
+                throw error;
+            }
         }
     }, [url, activeSheetTitle]);
     const addChart = useCallback((sheetTitle: string, chartType: 'COLUMN' | 'BAR' | 'LINE' | 'PIE' = 'COLUMN', title: string = 'Báo Cáo Thống Kê', domainColIndex: number = 0, seriesColIndex: number = 1, rowCount: number = 10, rowIndexOffset: number = 0) => {
@@ -492,7 +545,7 @@ export function useAutomation() {
     const clearSheet = useCallback((sheetTitle?: string) => {
         const targetTitle = sheetTitle || activeSheetTitle;
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
-        if (targetTitle.toLowerCase() === activeSheetTitle.toLowerCase()) {
+        if (targetTitle.toLowerCase() === activeSheetTitleRef.current.toLowerCase()) {
             engine.clearRows();
             setRows([]);
             setStats(engine.getStats());
@@ -508,44 +561,72 @@ export function useAutomation() {
             })
                 .catch((err) => {
                 appendLog(`sync-clear-err-${Date.now()}`, 'error', `Lỗi xóa dữ liệu trên Google Sheet: ${err.message}`);
-                if (targetTitle.toLowerCase() === activeSheetTitle.toLowerCase()) {
+                if (targetTitle.toLowerCase() === activeSheetTitleRef.current.toLowerCase()) {
                     void fetchFromUrl(url, activeSheetTitle);
                 }
             });
         }
     }, [engine, url, activeSheetTitle, fetchFromUrl]);
-    const addRow = useCallback((customData?: Record<string, unknown>) => {
-        const updated = engine.addRow(customData);
-        setRows([...updated]);
-        setStats(engine.getStats());
-        const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
-        const newRow = updated[updated.length - 1];
+    const addRow = useCallback(async (customData?: Record<string, unknown>, sheetTitle?: string) => {
+        const targetTitle = sheetTitle || activeSheetTitle;
+        const targetHeaders = allSheetHeaders[targetTitle] || Object.keys(customData || {});
+        const rowData: Record<string, unknown> = Object.fromEntries(targetHeaders.map((header) => [
+            header,
+            Object.entries(customData || {}).find(([key]) => key.toLowerCase() === header.toLowerCase())?.[1] ?? '',
+        ]));
+        for (const [key, value] of Object.entries(customData || {})) {
+            if (!Object.keys(rowData).some((header) => header.toLowerCase() === key.toLowerCase())) rowData[key] = value;
+        }
+        let newRow: DataRow;
+        if (targetTitle.toLowerCase() === activeSheetTitleRef.current.toLowerCase()) {
+            const updated = engine.addRow(rowData);
+            setRows([...updated]);
+            setStats(engine.getStats());
+            newRow = updated[updated.length - 1];
+        } else {
+            const existingRows = allSheetRowsRef.current[targetTitle] || [];
+            newRow = {
+                id: `row-new-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+                rowNumber: existingRows.length + 1,
+                data: rowData,
+                status: 'pending',
+            };
+            const nextRows = [...existingRows, newRow];
+            setAllSheetRows((previous) => {
+                const next = { ...previous, [targetTitle]: nextRows };
+                allSheetRowsRef.current = next;
+                return next;
+            });
+        }
+        const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(urlRef.current);
         if (spreadsheetId && newRow) {
             if (!GoogleSyncService.getAccessToken()) {
                 appendLog(`warn-auth-${Date.now()}`, 'warn', `⚠️ Chưa Đăng nhập Google: Đã thêm hàng trên giao diện. Vui lòng bấm nút "Đăng nhập Google" ở góc trên để ghi trực tiếp vào Google Sheet thật!`);
                 return;
             }
-            const allHeaders = Object.keys(newRow.data);
-            GoogleSyncService.appendRow(spreadsheetId, activeSheetTitle, allHeaders, newRow.data)
-                .then(() => {
-                appendLog(`sync-add-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã thêm hàng "${newRow.data['NAME'] || newRow.data['ID']}" vào trang "${activeSheetTitle}" Google Sheet thật.`);
-            })
-                .catch((err) => {
-                appendLog(`sync-add-error-${Date.now()}`, 'error', `Lỗi thêm hàng lên Google Sheet: ${err.message}`);
-            });
+            try {
+                const allHeaders = Object.keys(newRow.data);
+                await GoogleSyncService.appendRow(spreadsheetId, targetTitle, allHeaders, newRow.data);
+                appendLog(`sync-add-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã thêm hàng "${newRow.data['NAME'] || newRow.data['ID']}" vào trang "${targetTitle}" Google Sheet thật.`);
+            } catch (error: unknown) {
+                const message = getErrorMessage(error, 'Không thể thêm hàng lên Google Sheet.');
+                appendLog(`sync-add-error-${Date.now()}`, 'error', `Lỗi thêm hàng lên Google Sheet: ${message}`);
+                throw error;
+            }
         }
-    }, [engine, url, activeSheetTitle]);
-    const autoResizeColumns = useCallback((sheetTitle?: string, startCol: number = 0, endCol?: number) => {
+    }, [engine, url, activeSheetTitle, allSheetHeaders, appendLog]);
+    const autoResizeColumns = useCallback(async (sheetTitle?: string, startCol: number = 0, endCol?: number) => {
         const targetTitle = sheetTitle || activeSheetTitle;
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
-            GoogleSyncService.autoResizeColumns(spreadsheetId, targetTitle, startCol, endCol)
-                .then(() => {
+            try {
+                await GoogleSyncService.autoResizeColumns(spreadsheetId, targetTitle, startCol, endCol);
                 appendLog(`sync-autoresize-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã tự động căn chỉnh (Auto-fit) độ rộng các cột trên trang "${targetTitle}".`);
-            })
-                .catch((err) => {
-                appendLog(`sync-autoresize-err-${Date.now()}`, 'error', `Lỗi tự động căn chỉnh cột: ${err.message}`);
-            });
+            } catch (error: unknown) {
+                const message = getErrorMessage(error, 'Không thể tự động căn chỉnh cột.');
+                appendLog(`sync-autoresize-err-${Date.now()}`, 'error', `Lỗi tự động căn chỉnh cột: ${message}`);
+                throw error;
+            }
         }
     }, [url, activeSheetTitle]);
     const setColumnWidth = useCallback((sheetTitle?: string, pixelSize: number = 160, startCol: number = 0, endCol?: number) => {
@@ -600,6 +681,7 @@ export function useAutomation() {
         addChart,
         clearCharts,
         createSheet,
+        createSpreadsheet,
         deleteSheet,
         duplicateSheet,
         renameSheet,

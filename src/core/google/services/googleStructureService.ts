@@ -2,6 +2,46 @@ import { GoogleWriteService } from '@/core/google/services/googleWriteService';
 import { readGoogleApiError } from '@/core/google/services/googleApiUtils';
 
 export class GoogleStructureService extends GoogleWriteService {
+  public static async createSpreadsheet(
+    title: string,
+    sheetTitle: string = 'Sheet1',
+    headers: string[] = []
+  ): Promise<{ spreadsheetId: string; spreadsheetUrl: string; sheetTitle: string }> {
+    const token = this.getAccessToken();
+    if (!token) throw new Error('Chưa đăng nhập Google.');
+
+    const response = await fetch('https://sheets.googleapis.com/v4/spreadsheets', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        properties: { title },
+        sheets: [{
+          properties: { title: sheetTitle },
+          data: headers.length > 0 ? [{
+            startRow: 0,
+            startColumn: 0,
+            rowData: [{
+              values: headers.map((header) => ({ userEnteredValue: { stringValue: header } })),
+            }],
+          }] : undefined,
+        }],
+      }),
+    });
+    if (!response.ok) {
+      throw new Error(await readGoogleApiError(response, `Không thể tạo file Google Sheets "${title}".`));
+    }
+
+    const result = await response.json() as { spreadsheetId: string; spreadsheetUrl?: string };
+    return {
+      spreadsheetId: result.spreadsheetId,
+      spreadsheetUrl: result.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${result.spreadsheetId}/edit`,
+      sheetTitle,
+    };
+  }
+
   public static async addSheetTab(
     spreadsheetId: string,
     sheetTitle: string,

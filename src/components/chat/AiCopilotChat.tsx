@@ -46,18 +46,19 @@ interface AiCopilotChatProps {
     allSheetRows?: SheetDataIndex;
     externalDocuments?: PermittedDocument[];
     activeSheetTitle: string;
+    onCreateSpreadsheet?: (title: string, sheetTitle?: string, headers?: string[]) => Promise<{ spreadsheetId: string; spreadsheetUrl: string; sheetTitle: string }>;
     onUpdateHeaders?: (sheetTitle: string, newHeaders: string[]) => void;
     onAddColumn?: (sheetTitle: string, columnName: string) => void;
     onDeleteColumn?: (sheetTitle: string, colKey: string) => void;
-    onFreezeRowsCols?: (sheetTitle: string, frozenRows?: number, frozenCols?: number) => void;
+    onFreezeRowsCols?: (sheetTitle: string, frozenRows?: number, frozenCols?: number) => void | Promise<void>;
     onSortRange?: (sheetTitle: string, colKey: string, ascending?: boolean) => void;
     onUpdateRange?: (sheetTitle: string, range: string, values: unknown[][]) => void;
-    onFormatCells?: (sheetTitle: string, rangeA1?: string, options?: CellFormatOptions) => void;
-    onAutoResizeColumns?: (sheetTitle?: string, startCol?: number, endCol?: number) => void;
+    onFormatCells?: (sheetTitle: string, rangeA1?: string, options?: CellFormatOptions) => void | Promise<void>;
+    onAutoResizeColumns?: (sheetTitle?: string, startCol?: number, endCol?: number) => void | Promise<void>;
     onSetColumnWidth?: (sheetTitle?: string, pixelSize?: number, startCol?: number, endCol?: number) => void;
     onAddChart?: (sheetTitle: string, chartType?: 'COLUMN' | 'BAR' | 'LINE' | 'PIE', title?: string, domainColIndex?: number, seriesColIndex?: number, rowCount?: number, rowIndexOffset?: number) => void;
     onClearCharts?: (sheetTitle?: string) => void;
-    onCreateSheet?: (sheetTitle: string, initialHeaders?: string[]) => void;
+    onCreateSheet?: (sheetTitle: string, initialHeaders?: string[]) => void | Promise<void>;
     onDeleteSheet?: (sheetTitle: string) => void;
     onDuplicateSheet?: (sourceTitle: string, newTitle?: string) => void;
     onRenameSheet?: (oldTitle: string, newTitle: string) => void;
@@ -69,7 +70,7 @@ interface AiCopilotChatProps {
         newValue?: unknown;
     }>) => void;
     onBatchDeleteRows?: (rowIds: string[]) => void;
-    onAddRow: (customData?: Record<string, unknown>) => void;
+    onAddRow: (customData?: Record<string, unknown>, sheetTitle?: string) => void | Promise<void>;
     onDeleteRow: (rowId: string) => void;
     onClearSheet?: (sheetTitle?: string) => void;
     onSelectSheetTab?: (sheetTitle: string) => void;
@@ -116,7 +117,7 @@ function sanitizeBotText(text: string): string {
         .replace(/_{2}([^_\n]+)_{2}/g, '$1')
         .trim();
 }
-export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = [], allSheetHeaders = {}, allSheetRows = {}, externalDocuments = [], activeSheetTitle, onUpdateHeaders, onAddColumn, onDeleteColumn, onFreezeRowsCols, onSortRange, onUpdateRange, onFormatCells, onAutoResizeColumns, onSetColumnWidth, onAddChart, onClearCharts, onCreateSheet, onDeleteSheet, onDuplicateSheet, onRenameSheet, onUpdateRow, onBatchUpdateRows, onBatchDeleteRows, onAddRow, onDeleteRow, onClearSheet, onSelectSheetTab, onStartPipeline, onPausePipeline, onResumePipeline, onResetPipeline, onClearLogs, onChangeSpeed, onFetchFromUrl, }) => {
+export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = [], allSheetHeaders = {}, allSheetRows = {}, externalDocuments = [], activeSheetTitle, onCreateSpreadsheet, onUpdateHeaders, onAddColumn, onDeleteColumn, onFreezeRowsCols, onSortRange, onUpdateRange, onFormatCells, onAutoResizeColumns, onSetColumnWidth, onAddChart, onClearCharts, onCreateSheet, onDeleteSheet, onDuplicateSheet, onRenameSheet, onUpdateRow, onBatchUpdateRows, onBatchDeleteRows, onAddRow, onDeleteRow, onClearSheet, onSelectSheetTab, onStartPipeline, onPausePipeline, onResumePipeline, onResetPipeline, onClearLogs, onChangeSpeed, onFetchFromUrl, }) => {
     const { messages, setMessages, clearHistory } = useChatHistory();
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(false);
@@ -135,6 +136,7 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
             const { summaries, report } = await executeAgentActions(tx.inverseActions, {
                 rows,
                 activeSheetTitle: tx.sheetTitle || activeSheetTitle,
+                onCreateSpreadsheet,
                 onUpdateHeaders,
                 onAddColumn,
                 onDeleteColumn,
@@ -227,6 +229,7 @@ export const AiCopilotChat: React.FC<AiCopilotChatProps> = ({ rows, sheetTabs = 
             const { summaries: actionSummaries, report } = await executeAgentActions(response.actions ?? [], {
                 rows,
                 activeSheetTitle,
+                onCreateSpreadsheet,
                 onUpdateHeaders,
                 onAddColumn,
                 onDeleteColumn,

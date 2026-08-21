@@ -24,9 +24,11 @@ export const ROW_TOOLS: DeepSeekToolDefinition[] = [
     },
   }, ['updates'])),
   tool('add_row', 'Thêm một hàng mới vào cuối bảng tính.', objectSchema({
+    sheetTitle: { type: 'string', description: 'Tên sheet đích; bắt buộc khi vừa tạo sheet mới hoặc ghi vào sheet không đang mở' },
     rowData: { type: 'object', additionalProperties: true, description: 'Object chứa dữ liệu hàng mới { "name": "...", "price": 100 }' },
   }, ['rowData'])),
   tool('batch_add_rows', 'Thêm nhiều hàng mới cùng lúc vào cuối bảng tính.', objectSchema({
+    sheetTitle: { type: 'string', description: 'Tên sheet đích; bắt buộc khi vừa tạo sheet mới hoặc ghi vào sheet không đang mở' },
     rowsData: {
       type: 'array',
       items: { type: 'object', additionalProperties: true },

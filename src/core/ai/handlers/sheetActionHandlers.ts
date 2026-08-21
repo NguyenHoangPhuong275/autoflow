@@ -12,8 +12,15 @@ export async function executeSheetAction(
 ): Promise<{ result: ActionExecutionResult; summary: string } | null> {
   const rows = context.rows;
 
+  if (action.type === 'create_spreadsheet' && action.title) {
+    if (!context.onCreateSpreadsheet) throw new Error('Chức năng tạo file Google Sheets chưa được kết nối.');
+    const created = await context.onCreateSpreadsheet(action.title, action.sheetTitle, action.headers);
+    const msg = `Tạo file Google Sheets mới "${action.title}"`;
+    return { result: makeResult(action, 'success', msg, { sheetTitle: created.sheetTitle, data: created }), summary: msg };
+  }
+
   if (action.type === 'create_sheet' && action.sheetTitle) {
-    context.onCreateSheet?.(action.sheetTitle, action.headers);
+    await context.onCreateSheet?.(action.sheetTitle, action.headers);
     const msg = `Tạo trang tính mới "${action.sheetTitle}"`;
     return { result: makeResult(action, 'success', msg, { sheetTitle: action.sheetTitle }), summary: msg };
   }
@@ -65,7 +72,7 @@ export async function executeSheetAction(
 
   if (action.type === 'freeze_rows_cols') {
     const targetSheet = action.sheetTitle || activeSheetTitle;
-    context.onFreezeRowsCols?.(targetSheet, action.frozenRows ?? 1, action.frozenCols ?? 0);
+    await context.onFreezeRowsCols?.(targetSheet, action.frozenRows ?? 1, action.frozenCols ?? 0);
     const msg = `Cố định ${action.frozenRows ?? 1} hàng đầu trên "${targetSheet}"`;
     return { result: makeResult(action, 'success', msg, { sheetTitle: targetSheet }), summary: msg };
   }
@@ -86,7 +93,12 @@ export async function executeSheetAction(
 
   if (action.type === 'format_cells') {
     const targetSheet = action.sheetTitle || activeSheetTitle;
-    context.onFormatCells?.(targetSheet, action.range || '1:1', {
+    const hasFormatting = !!(action.backgroundColor || action.fontColor || action.bold !== undefined || action.italic !== undefined || action.fontSize || action.fontFamily || action.alignment);
+    if (!hasFormatting) {
+      const msg = `Bỏ qua format_cells trên "${targetSheet}" — không có thuộc tính định dạng nào (backgroundColor, fontColor, bold, fontSize, v.v.)`;
+      return { result: makeResult(action, 'failed', msg, { sheetTitle: targetSheet }), summary: msg };
+    }
+    await context.onFormatCells?.(targetSheet, action.range || '1:1', {
       backgroundColor: action.backgroundColor,
       fontColor: action.fontColor,
       bold: action.bold,
@@ -101,7 +113,7 @@ export async function executeSheetAction(
 
   if (action.type === 'auto_resize_columns') {
     const targetSheet = action.sheetTitle || activeSheetTitle;
-    context.onAutoResizeColumns?.(targetSheet, action.startCol, action.endCol);
+    await context.onAutoResizeColumns?.(targetSheet, action.startCol, action.endCol);
     const msg = `Tự động căn chỉnh độ rộng các cột trên "${targetSheet}"`;
     return { result: makeResult(action, 'success', msg, { sheetTitle: targetSheet }), summary: msg };
   }

@@ -91,7 +91,7 @@ export async function executeRowAction(
   }
 
   if (action.type === 'add_row') {
-    context.onAddRow(action.rowData);
+    await context.onAddRow(action.rowData, action.sheetTitle || activeSheetTitle);
     const msg = 'Thêm 1 hàng mới';
     return {
       result: makeResult(action, 'success', msg, { sheetTitle: activeSheetTitle }),
@@ -100,7 +100,9 @@ export async function executeRowAction(
   }
 
   if (action.type === 'batch_add_rows' && action.rowsData) {
-    action.rowsData.forEach((data) => context.onAddRow(data));
+    for (const data of action.rowsData) {
+      await context.onAddRow(data, action.sheetTitle || activeSheetTitle);
+    }
     const msg = `Thêm nhanh ${action.rowsData.length} hàng mới`;
     return {
       result: makeResult(action, 'success', msg, { sheetTitle: activeSheetTitle }),

@@ -64,7 +64,7 @@ export class GoogleFormattingService extends GoogleStructureService {
       fontFamily?: string;
       alignment?: 'LEFT' | 'CENTER' | 'RIGHT';
     } = {}
-  ): Promise<void> {
+  ): Promise<boolean> {
     const token = this.getAccessToken();
     if (!token) throw new Error('Chưa đăng nhập Google.');
 
@@ -76,10 +76,19 @@ export class GoogleFormattingService extends GoogleStructureService {
     let endRow = 1;
     let startCol = 0;
     let endCol = 10;
+    const isRowOnlyRange = /^\d+:\d+$/.test(rangeA1.trim())
+      || rangeA1.toLowerCase() === 'header'
+      || rangeA1.toLowerCase() === 'headers';
 
-    if (rangeA1 === '1:1' || rangeA1.toLowerCase() === 'header' || rangeA1.toLowerCase() === 'headers') {
-      startRow = 0;
-      endRow = 1;
+    if (isRowOnlyRange) {
+      const rowMatch = rangeA1.trim().match(/^(\d+):(\d+)$/);
+      if (rowMatch) {
+        startRow = parseInt(rowMatch[1], 10) - 1;
+        endRow = parseInt(rowMatch[2], 10);
+      } else {
+        startRow = 0;
+        endRow = 1;
+      }
       startCol = 0;
 
       try {
@@ -144,7 +153,7 @@ export class GoogleFormattingService extends GoogleStructureService {
       fields.push('userEnteredFormat.horizontalAlignment');
     }
 
-    if (fields.length === 0) return;
+    if (fields.length === 0) return false;
 
     const requests: Array<Record<string, unknown>> = [
       {
@@ -193,6 +202,8 @@ export class GoogleFormattingService extends GoogleStructureService {
     if (!response.ok) {
       throw new Error(await readGoogleApiError(response, 'Không thể định dạng ô tính.'));
     }
+
+    return true;
   }
 
   public static async fetchSheetChartIds(
