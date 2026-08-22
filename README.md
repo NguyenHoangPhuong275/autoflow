@@ -456,7 +456,6 @@ npm run build
 
 ## Tài liệu liên quan
 
-- [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md): kế hoạch và acceptance criteria nội bộ.
 - [spreadsheet_full_permissions_actions.md](spreadsheet_full_permissions_actions.md): ghi chú về nhóm thao tác Google Sheets.
 - [DeepSeek API documentation](https://api-docs.deepseek.com/): tài liệu API chính thức.
 
