@@ -2,18 +2,28 @@
 
 <div align="center">
 
-![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
-![React](https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react&logoColor=111827)
-![Vite](https://img.shields.io/badge/Vite-6-646CFF?style=for-the-badge&logo=vite&logoColor=white)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white)
-![DeepSeek](https://img.shields.io/badge/DeepSeek-Tool_Calling-4F46E5?style=for-the-badge)
-![Google Workspace](https://img.shields.io/badge/Google_Workspace-OAuth_2.0-34A853?style=for-the-badge&logo=google&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.7-3178C6?style=flat-square&logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-18.3-61DAFB?style=flat-square&logo=react&logoColor=111827)
+![Vite](https://img.shields.io/badge/Vite-6-646CFF?style=flat-square&logo=vite&logoColor=white)
+![DeepSeek](https://img.shields.io/badge/DeepSeek-tool_calling-4F46E5?style=flat-square)
+![Google Workspace](https://img.shields.io/badge/Google_Workspace-OAuth_2.0-34A853?style=flat-square&logo=google&logoColor=white)
 
 **AI workspace cho Google Sheets, Google Docs, Gmail và dữ liệu Excel/CSV**
 
 Đọc nguồn dữ liệu theo yêu cầu, điều khiển bảng tính bằng ngôn ngữ tự nhiên và chạy quy trình xử lý từng dòng với DeepSeek.
 
 </div>
+
+## Tóm tắt kỹ thuật
+
+| Hạng mục | Giá trị hiện tại |
+| --- | --- |
+| Frontend | React 18 + TypeScript + Vite + Tailwind CSS |
+| AI runtime | DeepSeek `deepseek-v4-flash` với tool calling |
+| Workspace integrations | Google Sheets, Drive, Docs và Gmail qua OAuth 2.0 |
+| Local input | `.xlsx`, `.xls` và `.csv` |
+| AI action catalog | 45 tools theo domain |
+| Development entry point | `npm run dev` tại `http://localhost:5173` |
 
 ## Mục lục
 
@@ -41,6 +51,8 @@ AutoFlow Studio là ứng dụng React/Vite giúp người dùng làm việc v�
 - Xem, sửa, lọc và xử lý dữ liệu trong DataGrid nhiều tab.
 - Ra lệnh cho AI Copilot bằng tiếng Việt hoặc tiếng Anh.
 - Đồng bộ thao tác ghi trở lại Google Workspace khi người dùng đã cấp quyền.
+
+Phạm vi sản phẩm tập trung vào ba trách nhiệm: **nạp dữ liệu có chủ đích**, **thực thi action có kiểm soát** và **hiển thị kết quả có thể truy vết**. Ứng dụng không phải là một kho dữ liệu riêng và không tự quyết định nguồn dữ liệu thay cho người dùng.
 
 Ứng dụng không seed dữ liệu mẫu khi khởi động. Dữ liệu chỉ xuất hiện sau khi người dùng chọn nguồn Google Workspace hoặc tải tệp cục bộ. Dữ liệu mẫu chỉ được tạo khi người dùng yêu cầu rõ ràng trong câu lệnh.
 
@@ -326,16 +338,30 @@ Mỗi dòng được gửi đến `DeepSeekService.processRow` để tạo trạ
 
 Agent hiện có **45 tools**, được chia theo domain:
 
-| Domain | Số lượng | Tools |
+| Domain | Số lượng | Source |
 | --- | ---: | --- |
-| Sheet | 19 | `create_spreadsheet`, `create_sheet`, `delete_sheet`, `duplicate_sheet`, `rename_sheet`, `switch_sheet`, `clear_sheet`, `update_headers`, `add_column`, `delete_column`, `freeze_rows_cols`, `sort_range`, `update_range`, `set_formula`, `format_cells`, `auto_resize_columns`, `set_column_width`, `add_chart`, `clear_charts` |
-| Row | 6 | `update_row`, `batch_update_rows`, `add_row`, `batch_add_rows`, `delete_row`, `batch_delete_rows` |
-| Pipeline | 8 | `start_pipeline`, `pause_pipeline`, `resume_pipeline`, `reset_pipeline`, `change_speed`, `clear_logs`, `export_csv`, `load_url` |
-| Gmail | 5 | `search_emails`, `read_email`, `send_email`, `trash_email`, `delete_email` |
-| Drive | 4 | `search_drive`, `create_drive_folder`, `rename_drive_file`, `delete_drive_file` |
-| Docs | 3 | `read_google_doc`, `create_google_doc`, `append_google_doc` |
+| Sheet | 19 | `src/core/ai/tools/sheetTools.ts` |
+| Row | 6 | `src/core/ai/tools/rowTools.ts` |
+| Pipeline | 8 | `src/core/ai/tools/pipelineTools.ts` |
+| Gmail | 5 | `src/core/ai/tools/gmailTools.ts` |
+| Drive | 4 | `src/core/ai/tools/driveTools.ts` |
+| Docs | 3 | `src/core/ai/tools/docsTools.ts` |
 
 `load_url` là action nội bộ cho luồng nạp Sheet sau khi hệ thống đã xác định được file; nó không tạo lại ô nhập URL trong giao diện người dùng.
+
+<details>
+<summary>Danh sách tool đầy đủ</summary>
+
+| Domain | Tools |
+| --- | --- |
+| Sheet | `create_spreadsheet`, `create_sheet`, `delete_sheet`, `duplicate_sheet`, `rename_sheet`, `switch_sheet`, `clear_sheet`, `update_headers`, `add_column`, `delete_column`, `freeze_rows_cols`, `sort_range`, `update_range`, `set_formula`, `format_cells`, `auto_resize_columns`, `set_column_width`, `add_chart`, `clear_charts` |
+| Row | `update_row`, `batch_update_rows`, `add_row`, `batch_add_rows`, `delete_row`, `batch_delete_rows` |
+| Pipeline | `start_pipeline`, `pause_pipeline`, `resume_pipeline`, `reset_pipeline`, `change_speed`, `clear_logs`, `export_csv`, `load_url` |
+| Gmail | `search_emails`, `read_email`, `send_email`, `trash_email`, `delete_email` |
+| Drive | `search_drive`, `create_drive_folder`, `rename_drive_file`, `delete_drive_file` |
+| Docs | `read_google_doc`, `create_google_doc`, `append_google_doc` |
+
+</details>
 
 ## Giới hạn DeepSeek
 
@@ -419,6 +445,14 @@ npm run typecheck
 npm test
 npm run build
 ```
+
+### Checklist trước khi push
+
+1. Xác định đúng layer và giữ dependency đi theo một chiều.
+2. Cập nhật type/schema trước khi nối vào handler hoặc UI.
+3. Bổ sung execution summary và thông báo lỗi nghiệp vụ.
+4. Kiểm tra success, failure và destructive confirmation.
+5. Cập nhật README nếu thay đổi tool, environment variable hoặc API flow.
 
 ## Tài liệu liên quan
 
