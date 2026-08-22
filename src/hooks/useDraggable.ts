@@ -1,5 +1,4 @@
 import { useRef, useCallback, useEffect, type RefObject, type MouseEvent } from 'react';
-import { getErrorMessage } from '@/core/utils/errors';
 
 const STORAGE_KEY = 'autoflow_pipeline_positions_v1';
 
@@ -20,8 +19,7 @@ function getStoredPositions(): Record<string, Position> {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
-  } catch (error: unknown) {
-    console.warn(`Không thể đọc vị trí pipeline: ${getErrorMessage(error)}`);
+  } catch {
     return {};
   }
 }
@@ -31,16 +29,16 @@ function savePosition(id: string, pos: Position): void {
     const all = getStoredPositions();
     all[id] = pos;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(all));
-  } catch (error: unknown) {
-    console.warn(`Không thể lưu vị trí pipeline: ${getErrorMessage(error)}`);
+  } catch {
+    return;
   }
 }
 
 export function clearStoredPositions(): void {
   try {
     localStorage.removeItem(STORAGE_KEY);
-  } catch (error: unknown) {
-    console.warn(`Không thể xóa vị trí pipeline: ${getErrorMessage(error)}`);
+  } catch {
+    return;
   }
 }
 

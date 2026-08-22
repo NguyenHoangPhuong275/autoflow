@@ -1,14 +1,14 @@
 import type { AgentAction } from '@/core/ai/agentTypes';
 import type { DataRow } from '@/types';
 import type { ActionExecutionResult, ActionExecutionReport } from '@/core/ai/actionExecutionTypes';
-import { DESTRUCTIVE_ACTION_TYPES } from '@/core/ai/actionExecutionTypes';
+import { DESTRUCTIVE_ACTION_TYPES, getActionLabel } from '@/core/ai/actionExecutionTypes';
 import { executeSheetAction } from './handlers/sheetActionHandlers';
 import { executeRowAction } from './handlers/rowActionHandlers';
 import { executePipelineAction } from './handlers/pipelineActionHandlers';
 import { executeGmailAction } from './handlers/gmailActionHandlers';
 import { executeDriveAction } from './handlers/driveActionHandlers';
 import { executeDocsAction } from './handlers/docsActionHandlers';
-import { getErrorMessage } from '@/core/utils/errors';
+import { getUserErrorMessage } from '@/core/utils/errors';
 import { isRecord } from '@/core/utils/errors';
 
 export interface BatchUpdate {
@@ -38,7 +38,7 @@ export interface AgentActionContext {
   onFreezeRowsCols?: (sheetTitle: string, frozenRows?: number, frozenCols?: number) => void | Promise<void>;
   onSortRange?: (sheetTitle: string, colKey: string, ascending?: boolean) => void;
   onUpdateRange?: (sheetTitle: string, range: string, values: unknown[][]) => void;
-  onFormatCells?: (sheetTitle: string, rangeA1?: string, options?: CellFormatOptions) => void | Promise<void>;
+  onFormatCells?: (sheetTitle: string, rangeA1?: string, options?: CellFormatOptions) => void | Promise<boolean | void>;
   onAutoResizeColumns?: (sheetTitle?: string, startCol?: number, endCol?: number) => void | Promise<void>;
   onSetColumnWidth?: (sheetTitle?: string, pixelSize?: number, startCol?: number, endCol?: number) => void;
   onAddChart?: (sheetTitle: string, chartType?: 'COLUMN' | 'BAR' | 'LINE' | 'PIE', title?: string, domainColIndex?: number, seriesColIndex?: number, rowCount?: number, rowIndexOffset?: number) => void;
@@ -60,7 +60,7 @@ export interface AgentActionContext {
   onResetPipeline?: () => void;
   onClearLogs?: () => void;
   onChangeSpeed?: (ms: number) => void;
-  onFetchFromUrl?: (url: string) => void;
+  onFetchFromUrl?: (url: string, sheetTitle?: string) => void | Promise<void>;
   requestDestructiveConfirmation?: (action: AgentAction) => Promise<boolean>;
 }
 
@@ -89,8 +89,9 @@ export async function executeAgentActions(
   const deletedRowIds: string[] = [];
   const { rows, activeSheetTitle } = context;
   let createdSpreadsheetUrl = '';
+  const orderedActions = prioritizeSourceLoading(actions);
 
-  for (const originalAction of actions) {
+  for (const originalAction of orderedActions) {
     const action = originalAction.type === 'send_email' && createdSpreadsheetUrl
       ? {
           ...originalAction,
@@ -103,7 +104,7 @@ export async function executeAgentActions(
       if (DESTRUCTIVE_ACTION_TYPES.has(action.type) && context.requestDestructiveConfirmation) {
         const confirmed = await context.requestDestructiveConfirmation(action);
         if (!confirmed) {
-          const msg = `Đã hủy: ${action.type} trên "${action.sheetTitle || activeSheetTitle}"`;
+          const msg = `Đã hủy thao tác ${getActionLabel(action)} trên "${action.sheetTitle || activeSheetTitle}".`;
           summaries.push(msg);
           results.push(makeResult(action, 'cancelled', msg, { sheetTitle: action.sheetTitle || activeSheetTitle }));
           continue;
@@ -125,14 +126,13 @@ export async function executeAgentActions(
           createdSpreadsheetUrl = handled.result.data.spreadsheetUrl;
         }
       } else {
-        const msg = `Không tìm thấy bộ xử lý cho action "${action.type}".`;
+        const msg = `Chưa thể thực hiện thao tác ${getActionLabel(action)}. Vui lòng thử lại.`;
         summaries.push(msg);
         results.push(makeResult(action, 'failed', msg));
       }
     } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error);
-      console.error(`Lỗi thực thi action "${action.type}": ${errorMessage}`);
-      const msg = `Lỗi thực thi ${action.type}: ${errorMessage}`;
+      const errorMessage = getUserErrorMessage(error, 'Vui lòng kiểm tra dữ liệu và thử lại.');
+      const msg = `Không thể thực hiện thao tác ${getActionLabel(action)}. ${errorMessage}`;
       summaries.push(msg);
       results.push(makeResult(action, 'failed', msg, {
         error: errorMessage,
@@ -167,4 +167,10 @@ export async function executeAgentActions(
   };
 
   return { summaries, report };
+}
+
+function prioritizeSourceLoading(actions: AgentAction[]): AgentAction[] {
+  const sourceLoadingActions = actions.filter((action) => action.type === 'load_url');
+  if (sourceLoadingActions.length === 0) return actions;
+  return [...sourceLoadingActions, ...actions.filter((action) => action.type !== 'load_url')];
 }

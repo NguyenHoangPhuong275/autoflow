@@ -1,7 +1,7 @@
 import { DataRow, LogEntry, ExecutionStats } from '@/types';
 import { DeepSeekService } from '@/core/services/deepSeekService';
 import { createLogEntry } from '@/core/logging/createLogEntry';
-import { getErrorMessage } from '@/core/utils/errors';
+import { getUserErrorMessage } from '@/core/utils/errors';
 export class AutomationEngine {
     private isRunning: boolean = false;
     private isPaused: boolean = false;
@@ -70,7 +70,10 @@ export class AutomationEngine {
     }
     public addRow(customData?: Record<string, unknown>): DataRow[] {
         const defaultData: Record<string, unknown> = {};
-        const existingHeaders = this.rows.length > 0 ? Object.keys(this.rows[0].data) : ['ID', 'NAME', 'PRICE', 'STOCK', 'TYPE', 'DESC'];
+        const existingHeaders = this.rows.length > 0 ? Object.keys(this.rows[0].data) : Object.keys(customData || {});
+        if (existingHeaders.length === 0) {
+            return this.rows;
+        }
         existingHeaders.forEach((k) => {
             defaultData[k] = '';
         });
@@ -84,9 +87,6 @@ export class AutomationEngine {
                     defaultData[inputKey] = String(val);
                 }
             });
-        }
-        if (defaultData['ID'] === '' || defaultData['ID'] === undefined) {
-            defaultData['ID'] = `p${this.rows.length + 1}`;
         }
         const newRow: DataRow = {
             id: `row-new-${Date.now()}-${Math.random().toString(36).substring(2, 5)}`,
@@ -113,7 +113,7 @@ export class AutomationEngine {
         this.isRunning = true;
         this.isPaused = false;
         this.notifyStats('running');
-        this.addLog('process', `Khởi chạy pipeline với ${this.rows.length} hàng dữ kiện [DeepSeek AI Active].`);
+        this.addLog('process', `Đã bắt đầu xử lý ${this.rows.length} hàng dữ liệu bằng AI.`);
         for (let i = 0; i < this.rows.length; i++) {
             if (!this.isRunning)
                 break;
@@ -129,7 +129,7 @@ export class AutomationEngine {
             this.onRowUpdate?.({ ...row });
             this.notifyStats('running');
             const keyVal = Object.values(row.data)[1] || Object.values(row.data)[0] || `Hàng #${row.rowNumber}`;
-            this.addLog('info', `[#${row.rowNumber}] DeepSeek AI đang phân tích: ${keyVal}...`, row.id);
+            this.addLog('info', `Hàng ${row.rowNumber}: AI đang phân tích dữ liệu ${keyVal}...`, row.id);
             const startTime = Date.now();
             try {
                 let aiResult = '';
@@ -144,16 +144,15 @@ export class AutomationEngine {
                 row.executionTimeMs = executionTime;
                 row.status = 'success';
                 row.resultMessage = aiResult;
-                this.addLog('success', `[#${row.rowNumber}] AI phản hồi: "${aiResult}" (${executionTime}ms)`, row.id);
+                this.addLog('success', `Hàng ${row.rowNumber}: AI đã hoàn tất — "${aiResult}" (thời gian xử lý: ${executionTime} ms)`, row.id);
             }
             catch (error: unknown) {
-                const message = getErrorMessage(error);
-                console.error(`[AutomationEngine] Row #${row.rowNumber} pipeline execution failed:`, error);
+            const message = getUserErrorMessage(error, 'Không thể xử lý dữ liệu của hàng. Vui lòng thử lại.');
                 const executionTime = Date.now() - startTime;
                 row.executionTimeMs = executionTime;
                 row.status = 'failed';
-                row.resultMessage = `Lỗi AI: ${message}`;
-                this.addLog('error', `[#${row.rowNumber}] Thất bại: ${message}`, row.id);
+                row.resultMessage = `Không thể xử lý dữ liệu: ${message}`;
+                this.addLog('error', `Hàng ${row.rowNumber}: Không thể hoàn tất. ${message}`, row.id);
             }
             this.onRowUpdate?.({ ...row });
             this.notifyStats('running');
@@ -164,24 +163,24 @@ export class AutomationEngine {
         this.isRunning = false;
         this.isPaused = false;
         const finalStats = this.getStats();
-        this.addLog('process', `Pipeline hoàn tất: ${finalStats.success}/${finalStats.total} thành công, ${finalStats.failed} lỗi.`);
+        this.addLog('process', `Đã hoàn tất quy trình: ${finalStats.success}/${finalStats.total} hàng thành công, ${finalStats.failed} hàng chưa xử lý được.`);
         this.notifyStats('completed');
         this.onComplete?.();
     }
     public pause() {
         this.isPaused = true;
-        this.addLog('warn', 'Tạm dừng pipeline.');
+        this.addLog('warn', 'Đã tạm dừng quy trình.');
         this.notifyStats('paused');
     }
     public resume() {
         this.isPaused = false;
-        this.addLog('info', 'Tiếp tục pipeline.');
+        this.addLog('info', 'Đã tiếp tục quy trình.');
         this.notifyStats('running');
     }
     public stop() {
         this.isRunning = false;
         this.isPaused = false;
-        this.addLog('warn', 'Dừng pipeline.');
+        this.addLog('warn', 'Đã dừng quy trình.');
         this.notifyStats('ready');
     }
     public reset() {

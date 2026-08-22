@@ -7,6 +7,7 @@ const app = read('src/App.tsx');
 const service = read('src/core/services/aiAgentService.ts');
 const deepSeek = read('src/core/services/deepSeekService.ts');
 const executor = read('src/core/ai/executeAgentActions.ts');
+const drive = read('src/core/ai/handlers/driveActionHandlers.ts');
 
 const checks = [
   ['prompt accepts all sheet rows', prompt.includes('allSheetRows: SheetDataIndex')],
@@ -20,6 +21,7 @@ const checks = [
   ['tool results are sent back to DeepSeek', service.includes("role: 'tool'")],
   ['assistant tool calls are preserved', deepSeek.includes('tool_calls?: DeepSeekToolCall[]')],
   ['search results require document reading', prompt.includes('bắt buộc gọi read_google_doc')],
+  ['existing Drive links are returned', drive.includes('webViewLink') && drive.includes('buildDriveFileLink') && prompt.includes('trả trực tiếp webViewLink')],
   ['duplicate actions are removed', service.includes('deduplicateActions')],
   ['new sheet population is required', prompt.includes('batch_add_rows có cùng sheetTitle')],
   ['row tools accept a target sheet', read('src/core/ai/tools/rowTools.ts').includes("sheetTitle: { type: 'string'")],

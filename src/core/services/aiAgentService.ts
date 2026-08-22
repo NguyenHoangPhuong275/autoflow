@@ -1,4 +1,4 @@
-import { DeepSeekService, type DeepSeekMessage, type DeepSeekToolCall, } from '@/core/services/deepSeekService';
+import { DeepSeekService, type DeepSeekMessage, } from '@/core/services/deepSeekService';
 import { extractTextActions, parseToolCall, } from '@/core/ai/agentActionParser';
 import { buildAgentPrompt } from '@/core/ai/buildAgentPrompt';
 import { completeWorkspaceActions, selectWorkspaceTools } from '@/core/ai/agentTools';
@@ -8,7 +8,14 @@ import { makeResult } from '@/core/ai/executeAgentActions';
 import { executeDriveAction } from '@/core/ai/handlers/driveActionHandlers';
 import { executeDocsAction } from '@/core/ai/handlers/docsActionHandlers';
 import { executeGmailAction } from '@/core/ai/handlers/gmailActionHandlers';
+import { GoogleSheetReader } from '@/core/parsers/googleSheetReader';
+import { GoogleSyncService } from '@/core/services/googleSyncService';
 import { normalizeForMatching } from '@/core/utils/text';
+import {
+    DEEPSEEK_MAX_INPUT_CHARACTERS,
+    DEEPSEEK_MAX_INPUT_TOKENS,
+    truncateToTokenBudget,
+} from '@/core/services/deepSeekLimits';
 export type { AgentAction, ChatMessage, ChatMessageOption, PermittedDocument, } from '@/core/ai/agentTypes';
 function isKnownSheetAction(action: AgentAction, knownTabs: Set<string>): boolean {
     if (action.type === 'create_sheet'
@@ -55,13 +62,15 @@ export class AiAgentService {
         let response = await DeepSeekService.chatCompletionWithTools(messages, availableTools);
         const deferredActions: AgentAction[] = [];
         for (let round = 0; round < 3 && response.toolCalls.length > 0; round += 1) {
-            const parsedCalls = response.toolCalls
-                .map((toolCall) => ({ toolCall, action: parseToolCall(toolCall) }))
-                .filter((entry): entry is { toolCall: DeepSeekToolCall; action: AgentAction } => entry.action !== null);
-            const retrievalCalls = parsedCalls.filter(({ action }) => RETRIEVAL_ACTIONS.has(action.type));
-            const deferredCalls = parsedCalls.filter(({ action }) => !RETRIEVAL_ACTIONS.has(action.type));
+            const parsedCalls = response.toolCalls.map((toolCall) => ({
+                toolCall,
+                action: parseToolCall(toolCall),
+            }));
+            const retrievalCalls = parsedCalls.filter(({ action }) => action && RETRIEVAL_ACTIONS.has(action.type));
             if (retrievalCalls.length === 0) {
-                deferredActions.push(...deferredCalls.map(({ action }) => action));
+                deferredActions.push(...parsedCalls
+                    .map(({ action }) => action)
+                    .filter((action): action is AgentAction => action !== null));
                 break;
             }
 
@@ -70,12 +79,19 @@ export class AiAgentService {
                 content: response.content || '',
                 tool_calls: response.toolCalls,
             });
-            for (const { toolCall, action } of retrievalCalls) {
-                const execution = await executeRetrievalAction(action);
+            for (const { toolCall, action } of parsedCalls) {
+                const content = action === null
+                    ? JSON.stringify({ status: 'failed', message: 'Tool call không hợp lệ và không thể thực thi.' })
+                    : RETRIEVAL_ACTIONS.has(action.type)
+                        ? JSON.stringify(await executeRetrievalAction(action))
+                        : JSON.stringify({ status: 'deferred', message: 'Action sẽ được thực thi sau khi hoàn tất truy vấn nguồn.', action: action.type });
+                if (action !== null && (action.type === 'load_url' || !RETRIEVAL_ACTIONS.has(action.type))) {
+                    deferredActions.push(action);
+                }
                 messages.push({
                     role: 'tool',
                     tool_call_id: toolCall.id,
-                    content: JSON.stringify(execution),
+                    content,
                 });
             }
             response = await DeepSeekService.chatCompletionWithTools(messages, availableTools);
@@ -86,10 +102,10 @@ export class AiAgentService {
             .filter((action): action is AgentAction => action !== null)
             .filter((action) => !RETRIEVAL_ACTIONS.has(action.type));
         const textResult = extractTextActions(response.content);
-        const knownTabs = new Set([...allSheetTabs, activeSheetTitle].map((title) => title.trim().toLowerCase()));
+        const knownTabs = new Set([...allSheetTabs, activeSheetTitle].filter(Boolean).map((title) => title.trim().toLowerCase()));
         let actions = deduplicateActions([...deferredActions, ...toolActions, ...textResult.actions]);
         actions = ensureRequestedEmailAction(userMessage, textResult.cleanReply, actions);
-        actions = deduplicateActions(completeWorkspaceActions(userMessage, actions, activeSheetTitle, allSheetTabs));
+        actions = deduplicateActions(completeWorkspaceActions(userMessage, actions, activeSheetTitle, allSheetTabs, allSheetHeaders, allSheetRows));
         return {
             reply: textResult.cleanReply || 'Đã thực thi toàn bộ yêu cầu của bạn.',
             actions: actions.filter((action) => isKnownSheetAction(action, knownTabs)),
@@ -99,13 +115,18 @@ export class AiAgentService {
 }
 
 const RETRIEVAL_ACTIONS = new Set<AgentAction['type']>([
-    'search_emails',
-    'read_email',
-    'search_drive',
-    'read_google_doc',
+  'search_emails',
+  'read_email',
+  'search_drive',
+  'read_google_doc',
+  'load_url',
 ]);
 
 async function executeRetrievalAction(action: AgentAction): Promise<unknown> {
+    if (action.type === 'load_url') {
+        return executeSheetRetrievalAction(action);
+    }
+
     const result = action.type === 'search_drive'
         ? await executeDriveAction(action, makeResult)
         : action.type === 'read_google_doc'
@@ -119,7 +140,34 @@ async function executeRetrievalAction(action: AgentAction): Promise<unknown> {
 
 function truncateRetrievalData(value: unknown): unknown {
     const serialized = JSON.stringify(value);
-    return serialized.length > 9000 ? `${serialized.slice(0, 9000)}...` : value;
+    if (serialized.length <= DEEPSEEK_MAX_INPUT_CHARACTERS) return value;
+    return truncateToTokenBudget(serialized, DEEPSEEK_MAX_INPUT_TOKENS);
+}
+
+async function executeSheetRetrievalAction(action: AgentAction): Promise<unknown> {
+    const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(action.url || '');
+    if (!spreadsheetId) {
+        return { summary: 'URL Google Sheets không hợp lệ.', data: null };
+    }
+
+    const tabs = await GoogleSyncService.fetchSheetMetadata(spreadsheetId);
+    const requestedTitle = action.sheetTitle?.trim();
+    const selectedTab = tabs.find((tab) => tab.title.toLowerCase() === requestedTitle?.toLowerCase())?.title
+        || tabs[0]?.title
+        || requestedTitle
+        || 'Sheet1';
+    const context = await GoogleSyncService.fetchSheetContext(spreadsheetId, selectedTab);
+
+    return {
+        summary: `Đã đọc cấu trúc Sheet "${selectedTab}".`,
+        data: {
+            spreadsheetId,
+            sheetTitle: selectedTab,
+            headers: context.headers,
+            rows: context.rows.map((row) => row.data),
+            rowCount: context.rows.length,
+        },
+    };
 }
 
 function deduplicateActions(actions: AgentAction[]): AgentAction[] {

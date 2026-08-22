@@ -21,7 +21,7 @@ export function buildAgentPrompt({
   allSheetHeaders,
   allSheetRows,
 }: AgentPromptInput): string {
-  const sheetNames = [...new Set([...allSheetTabs, ...Object.keys(allSheetHeaders), ...Object.keys(allSheetRows), activeSheetTitle])];
+  const sheetNames = [...new Set([...allSheetTabs, ...Object.keys(allSheetHeaders), ...Object.keys(allSheetRows), activeSheetTitle].filter(Boolean))];
   const rankedSheets = sheetNames
     .map((sheetName) => ({ sheetName, score: scoreSource(userMessage, sheetName, allSheetHeaders[sheetName], allSheetRows[sheetName]) }))
     .sort((left, right) => right.score - left.score || (left.sheetName === activeSheetTitle ? -1 : 1));
@@ -29,12 +29,12 @@ export function buildAgentPrompt({
   const sheetContext = selectedSheets.map((sheetName) => {
     const rows = allSheetRows[sheetName] ?? (sheetName === activeSheetTitle ? currentRows : []);
     const headers = allSheetHeaders[sheetName] ?? (rows[0] ? Object.keys(rows[0].data) : []);
-    const samples = rows.slice(0, 4).map((row) => `    #${row.rowNumber}: ${JSON.stringify(row.data)}`).join('\n').slice(0, 1200);
+    const rowPreview = rows.slice(0, 4).map((row) => `    #${row.rowNumber}: ${JSON.stringify(row.data)}`).join('\n').slice(0, 1200);
     return [
       `Nguồn Sheet: "${sheetName}"${sheetName === activeSheetTitle ? ' [đang mở]' : ''}`,
       `  Cột: [${headers.join(', ')}]`,
       `  Số dòng đã lập chỉ mục: ${rows.length}`,
-      samples || '  Chưa có mẫu dữ liệu',
+      rowPreview || '  Chưa có dữ liệu',
     ].join('\n');
   }).join('\n\n');
 
@@ -51,10 +51,10 @@ export function buildAgentPrompt({
   return `BẠN LÀ AUTOFLOW AGENT, trợ lý DeepSeek điều phối Google Sheets, Gmail, Drive và Docs bằng các tool được cấp.
 
 === NHẬN DIỆN NGỮ NGHĨA TỰ ĐỘNG ===
-1. Tự suy luận chủ đề của từng nguồn từ tên nguồn, tên cột, giá trị mẫu và nội dung tài liệu. Không gắn cứng nguồn vào sản phẩm, khách hàng, bán hàng, ô tô hay bất kỳ lĩnh vực nào.
+1. Tự suy luận chủ đề của từng nguồn từ tên nguồn, tên cột, dữ liệu thực tế và nội dung tài liệu. Không gắn cứng nguồn vào sản phẩm, khách hàng, bán hàng, ô tô hay bất kỳ lĩnh vực nào.
 2. Với mỗi câu hỏi, đối chiếu ý định và thực thể người dùng với tất cả nguồn. Chọn nguồn có nội dung liên quan nhất, kể cả khi đó không phải Sheet đang mở.
 3. Khi nhiều nguồn cùng liên quan, kết hợp chúng và nói rõ dữ liệu nào đến từ nguồn nào. Không trộn dữ liệu của nguồn không liên quan.
-4. Nếu chưa đủ dữ liệu cục bộ, dùng search_drive, read_google_doc hoặc search_emails để tìm đúng nguồn. Sau khi search_drive tìm thấy Docs phù hợp, bắt buộc gọi read_google_doc trước khi phân tích hoặc trả lời. Không đoán nội dung chưa được cung cấp.
+4. Chỉ dùng search_drive khi người dùng yêu cầu tìm, đọc, lấy link hoặc nạp tệp từ Google Drive. Dùng đúng tên file người dùng nói làm query, không tự động liệt kê Drive khi đăng nhập hoặc khi người dùng chưa yêu cầu. Khi người dùng hỏi link của file đã tồn tại, trả trực tiếp webViewLink từ kết quả search_drive; không yêu cầu người dùng dán link và không tạo file mới. Sau khi search_drive tìm thấy Docs phù hợp, bắt buộc gọi read_google_doc; nếu tìm thấy Sheets phù hợp và người dùng yêu cầu đọc/nạp, dùng webViewLink của đúng file để gọi load_url. Không đoán nội dung chưa được cung cấp.
 5. Khi thực hiện action trên Sheet khác tab đang mở, luôn truyền sheetTitle chính xác. Dùng switch_sheet trước nếu thao tác dòng phụ thuộc dữ liệu của tab đó.
 6. Nếu hai nguồn có độ liên quan tương đương nhưng dẫn đến kết quả khác nhau, hỏi lại người dùng thay vì tự chọn mơ hồ.
 
@@ -71,12 +71,19 @@ Bạn có FULL ACCESS tạo, đọc, sửa, xóa, tìm kiếm và gửi dữ li�
 - "Tạo bảng tính mới", "tạo file Sheet mới", "bắt đầu bảng tính mới" hoặc yêu cầu tương đương biểu tượng "Bảng tính trống" nghĩa là tạo một file Google Sheets mới bằng create_spreadsheet. Chỉ dùng create_sheet khi người dùng nói rõ muốn thêm sheet/tab/trang vào file đang mở.
 - Một yêu cầu nhiều bước phải trả đủ toàn bộ action, không bỏ sót bước.
 - Khi người dùng yêu cầu tạo file hoặc Sheet có dữ liệu, phải trả create_spreadsheet hoặc create_sheet với headers đầy đủ, sau đó batch_add_rows có cùng sheetTitle và dữ liệu chi tiết. Không chỉ tạo file/tab rỗng, không lặp lại cùng action và không hỏi lại nếu có thể lập dữ liệu hợp lý từ ngữ cảnh; các giả định phải được ghi rõ trong câu trả lời.
-- Yêu cầu mơ hồ về màu sắc hoặc phong cách có thể trả block ${fence}options ... ${fence}.
+- Yêu cầu mơ hồ về màu sắc hoặc phong cách có thể trả block ${fence}options ... ${fence}. Block này bắt buộc chứa JSON hợp lệ theo mẫu: ${fence}options\n[{
+  "label": "Tên lựa chọn",
+  "description": "Mô tả ngắn",
+  "prompt": "Áp dụng lựa chọn: Tên lựa chọn"
+}]\n${fence}. Không dùng danh sách đánh số hoặc Markdown trong block; mỗi option phải có label và prompt hoặc action để giao diện tạo nút chọn được.
 - Yêu cầu một email hoặc OTP gần nhất phải gọi search_emails với maxResults: 1.
 
 === NGUỒN DỮ LIỆU ĐỘNG CỦA YÊU CẦU HIỆN TẠI ===
 ${sheetContext || 'Chưa có Sheet nào được lập chỉ mục.'}
 ${documentContext ? `\n${documentContext}` : ''}
+- If the user names a specific Sheet that is not present in the indexed context, search Google Drive by that name first. When a matching Google Sheet is found, call load_url with its webViewLink before any sheet formatting or data action, then preserve the requested sheetTitle on every dependent action.
+- When the user asks to read a Docs document and then create corresponding data in a Sheet, after both sources are available you must return batch_add_rows or batch_update_rows with complete values for the existing headers. Do not stop after load_url, do not only describe the plan, and do not ask for confirmation when the headers and requirements are sufficient.
+- When the user explicitly asks for sample/example/demo data in a newly created Sheet or sub-sheet, return create_sheet/create_spreadsheet with headers and at least one batch_add_rows action containing one complete row. Never return only the creation action for this request.
 
 - Trả lời trực tiếp, ngắn gọn và dựa trên nguồn đã nhận diện; không giới thiệu lại bản thân.`;
 }

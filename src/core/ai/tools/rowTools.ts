@@ -4,7 +4,7 @@ import { tool, objectSchema } from './toolSchemaHelper';
 export const ROW_TOOLS: DeepSeekToolDefinition[] = [
   tool('update_row', 'Chỉnh sửa dữ liệu của một hàng cụ thể trong bảng.', objectSchema({
     rowNumber: { type: 'integer', minimum: 1 },
-    idCol: { type: 'string', description: 'Mã ID của dòng (ví dụ p5, p6, orders-1)' },
+    idCol: { type: 'string', description: 'Mã ID của dòng trong dữ liệu đã tải' },
     colKey: { type: 'string', description: 'Tên cột cần sửa' },
     newValue: { description: 'Giá trị mới cần cập nhật' },
     updatedData: { type: 'object', additionalProperties: true, description: 'Cập nhật nhiều cột cùng lúc dưới dạng object { col1: val1, col2: val2 }' },
@@ -25,7 +25,7 @@ export const ROW_TOOLS: DeepSeekToolDefinition[] = [
   }, ['updates'])),
   tool('add_row', 'Thêm một hàng mới vào cuối bảng tính.', objectSchema({
     sheetTitle: { type: 'string', description: 'Tên sheet đích; bắt buộc khi vừa tạo sheet mới hoặc ghi vào sheet không đang mở' },
-    rowData: { type: 'object', additionalProperties: true, description: 'Object chứa dữ liệu hàng mới { "name": "...", "price": 100 }' },
+    rowData: { type: 'object', additionalProperties: true, description: 'Object chứa dữ liệu thực tế của hàng mới' },
   }, ['rowData'])),
   tool('batch_add_rows', 'Thêm nhiều hàng mới cùng lúc vào cuối bảng tính.', objectSchema({
     sheetTitle: { type: 'string', description: 'Tên sheet đích; bắt buộc khi vừa tạo sheet mới hoặc ghi vào sheet không đang mở' },
@@ -36,13 +36,13 @@ export const ROW_TOOLS: DeepSeekToolDefinition[] = [
   }, ['rowsData'])),
   tool('delete_row', 'Xóa một hàng khỏi bảng, xác định bằng rowNumber hoặc ID (idCol).', objectSchema({
     rowNumber: { type: 'integer', minimum: 1 },
-    idCol: { type: 'string', description: 'Mã ID của dòng cần xóa (ví dụ p5, p6)' },
+    idCol: { type: 'string', description: 'Mã ID của dòng cần xóa trong dữ liệu đã tải' },
   })),
   tool('batch_delete_rows', 'Xóa nhiều hàng cùng một lúc bằng danh sách ID hoặc danh sách số thứ tự hàng.', objectSchema({
     idCols: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Danh sách ID cần xóa, ví dụ ["p5", "p6"]',
+      description: 'Danh sách ID cần xóa',
     },
     rowNumbers: {
       type: 'array',

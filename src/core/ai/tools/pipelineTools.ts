@@ -11,5 +11,6 @@ export const PIPELINE_TOOLS: DeepSeekToolDefinition[] = [
   tool('export_csv', 'Xuất dữ liệu bảng hiện tại ra tệp CSV để tải về.'),
   tool('load_url', 'Nạp liên kết Google Sheet mới vào hệ thống.', objectSchema({
     url: { type: 'string', description: 'Đường dẫn Google Sheets URL' },
+    sheetTitle: { type: 'string', description: 'Tên tab cần đọc, nếu người dùng đã chỉ định' },
   }, ['url'])),
 ];

@@ -2,7 +2,7 @@ import type { AgentAction } from '@/core/ai/agentTypes';
 import type { DataRow } from '@/types';
 import type { ActionExecutionResult } from '@/core/ai/actionExecutionTypes';
 import type { AgentActionContext } from '@/core/ai/executeAgentActions';
-import { getErrorMessage } from '@/core/utils/errors';
+import { getUserErrorMessage } from '@/core/utils/errors';
 
 export async function executePipelineAction(
   action: AgentAction,
@@ -48,7 +48,7 @@ export async function executePipelineAction(
   }
 
   if (action.type === 'load_url' && action.url) {
-    context.onFetchFromUrl?.(action.url);
+    await context.onFetchFromUrl?.(action.url, action.sheetTitle);
     const msg = `Nạp dữ liệu từ URL: ${action.url}`;
     return { result: makeResult(action, 'success', msg), summary: msg };
   }
@@ -82,8 +82,7 @@ export async function executePipelineAction(
         return { result: makeResult(action, 'success', msg), summary: msg };
       }
     } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error, 'Không thể xuất CSV.');
-      console.warn(errorMessage);
+      const errorMessage = getUserErrorMessage(error, 'Không thể xuất CSV. Vui lòng thử lại.');
       const msg = 'Lỗi khi xuất CSV.';
       return { result: makeResult(action, 'failed', msg, { error: errorMessage }), summary: msg };
     }

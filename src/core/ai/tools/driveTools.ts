@@ -2,7 +2,7 @@ import type { DeepSeekToolDefinition } from '@/core/services/deepSeekService';
 import { tool, objectSchema } from './toolSchemaHelper';
 
 export const DRIVE_TOOLS: DeepSeekToolDefinition[] = [
-  tool('search_drive', 'Tìm kiếm và liệt kê tệp, bảng tính Google Sheets hoặc Google Docs trong Google Drive.', objectSchema({
+  tool('search_drive', 'Tìm kiếm tệp trong Google Drive theo tên và trả về tên, loại, ID cùng webViewLink để người dùng có thể mở trực tiếp file đã tồn tại.', objectSchema({
     query: { type: 'string', description: 'Từ khóa tìm kiếm tên file' },
     fileType: { type: 'string', enum: ['all', 'sheets', 'docs'], description: 'Loại tệp cần lọc: "docs" (chỉ lấy Google Docs), "sheets" (chỉ lấy Sheets), hoặc "all"' },
     maxResults: { type: 'integer', description: 'Số lượng file tối đa (mặc định 10)' },

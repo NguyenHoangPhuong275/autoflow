@@ -1,5 +1,5 @@
 import { APP_CONFIG } from '../../config.ts';
-import { getErrorMessage, readJson } from '../../utils/errors.ts';
+import { readJson, toError } from '../../utils/errors.ts';
 import type { GoogleSession, GoogleTokenClient, GoogleTokenResponse } from '../types.ts';
 
 const STORAGE_KEY = 'autoflow_google_session';
@@ -34,10 +34,10 @@ export class GoogleAuthService {
             }
 
             localStorage.removeItem(STORAGE_KEY);
-        } catch (error: unknown) {
-            console.warn(`Không thể khôi phục phiên Google: ${getErrorMessage(error)}`);
+        } catch {
+            this.session = null;
+            return null;
         }
-
         return null;
     }
 
@@ -96,7 +96,7 @@ export class GoogleAuthService {
                         localStorage.setItem(STORAGE_KEY, JSON.stringify(session));
                         resolve(session);
                     } catch (error: unknown) {
-                        reject(error instanceof Error ? error : new Error(getErrorMessage(error)));
+                        reject(toError(error, 'Đăng nhập Google thất bại.'));
                     }
                 },
             });
@@ -160,14 +160,12 @@ export class GoogleAuthService {
                 headers: { Authorization: `Bearer ${accessToken}` },
             });
             if (!response.ok) {
-                console.warn(`Không thể đọc email người dùng Google: HTTP ${response.status}`);
                 return '';
             }
 
             const userInfo = await readJson<GoogleUserInfo>(response, {});
             return userInfo.email || '';
-        } catch (error: unknown) {
-            console.warn(`Không thể đọc email người dùng Google: ${getErrorMessage(error)}`);
+        } catch {
             return '';
         }
     }

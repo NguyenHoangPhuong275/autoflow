@@ -20,6 +20,7 @@ export interface GoogleRgbColor {
 export function detectColorToGoogleRgb(color: string): GoogleRgbColor {
     const raw = color.trim().toLowerCase();
     const targetColor = VIETNAMESE_COLOR_NAMES[raw] || raw;
+    let canvasColor: GoogleRgbColor | null = null;
     if (typeof document !== 'undefined') {
         try {
             const canvas = document.createElement('canvas');
@@ -30,16 +31,17 @@ export function detectColorToGoogleRgb(color: string): GoogleRgbColor {
                 context.fillStyle = targetColor;
                 context.fillRect(0, 0, 1, 1);
                 const [red, green, blue] = context.getImageData(0, 0, 1, 1).data;
-                return {
+                canvasColor = {
                     red: red / 255,
                     green: green / 255,
                     blue: blue / 255,
                 };
             }
         }
-        catch (error) {
-            console.warn('[GoogleColor] Canvas color auto-detect error:', error);
+        catch {
+            canvasColor = null;
         }
+        if (canvasColor) return canvasColor;
     }
     let hex = targetColor.replace(/[^0-9a-f]/gi, '');
     if (hex.length === 3) {

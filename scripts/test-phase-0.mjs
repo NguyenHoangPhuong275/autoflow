@@ -37,8 +37,8 @@ function read(relPath) {
 
 console.log('\n── Phase 0: AppErrorBoundary Deep Audit ──');
 
-const errorBoundarySrc = read('src/components/error/AppErrorBoundary.tsx');
-const mainSrc = read('src/main.tsx');
+const errorBoundarySrc = read('src/components/error/AppErrorBoundary.tsx').replace(/\r\n/g, '\n');
+const mainSrc = read('src/main.tsx').replace(/\r\n/g, '\n');
 
 // 1. Structure & Props
 assert('AppErrorBoundary class is exported', errorBoundarySrc.includes('export class AppErrorBoundary extends React.Component'));
@@ -52,7 +52,13 @@ assert('getDerivedStateFromError sets hasError: true and saves error', errorBoun
 assert('AppErrorBoundary defines componentDidCatch', errorBoundarySrc.includes('componentDidCatch(error: Error, errorInfo: React.ErrorInfo)'));
 
 // 3. No swallowed logs / Transparent error reporting
-assert('componentDidCatch logs error to console with full stack', errorBoundarySrc.includes("console.error(\n      '[AppErrorBoundary] Uncaught component exception:'"));
+assert(
+  'componentDidCatch keeps diagnostics behind explicit debug flag',
+  errorBoundarySrc.includes('const DEBUG_ERRORS =') &&
+  errorBoundarySrc.includes('if (DEBUG_ERRORS)') &&
+  errorBoundarySrc.includes('console.error(') &&
+  errorBoundarySrc.includes("'\\nStack:', error.stack")
+);
 assert('componentDidCatch invokes custom onError handler safely', errorBoundarySrc.includes('this.props.onError(error, errorInfo)'));
 
 // 4. Recovery & Diagnostics UI

@@ -1,6 +1,6 @@
 import type { AgentAction, ChatMessageOption } from '@/core/ai/agentTypes';
 import type { DeepSeekToolCall } from '@/core/services/deepSeekService';
-import { getErrorMessage, isRecord } from '@/core/utils/errors';
+import { isRecord } from '@/core/utils/errors';
 
 export const AGENT_ACTION_TYPES = new Set<AgentAction['type']>([
     'create_spreadsheet', 'create_sheet', 'delete_sheet', 'duplicate_sheet', 'rename_sheet', 'switch_sheet', 'clear_sheet',
@@ -30,8 +30,8 @@ export function parseToolCall(toolCall: DeepSeekToolCall): AgentAction | null {
         };
         return isAgentAction(action) ? action : null;
     } catch (error: unknown) {
-        console.warn(`Không thể đọc arguments của tool "${toolCall.function.name}": ${getErrorMessage(error)}`);
-        return null;
+        if (error instanceof SyntaxError) return null;
+        throw error;
     }
 }
 
@@ -42,7 +42,7 @@ export function extractTextActions(content: string): {
 } {
     const actionBlock = extractJsonBlock(content, 'action');
     const withoutActions = actionBlock.match ? content.replace(actionBlock.match[0], '').trim() : content;
-    const optionsBlock = extractJsonBlock(withoutActions, 'options');
+    const optionsBlock = extractOptionsBlock(withoutActions);
     const cleanReply = optionsBlock.match ? withoutActions.replace(optionsBlock.match[0], '').trim() : withoutActions;
     const actionCandidates = Array.isArray(actionBlock.value) ? actionBlock.value : [actionBlock.value];
     const actions = actionCandidates.filter(isAgentAction);
@@ -64,9 +64,38 @@ function extractJsonBlock(content: string, blockName: 'action' | 'options'): {
     try {
         return { match, value: JSON.parse(match[1]) as unknown };
     } catch (error: unknown) {
-        console.warn(`Không thể đọc block ${blockName}: ${getErrorMessage(error)}`);
-        return { match: null, value: undefined };
+        if (error instanceof SyntaxError) return { match: null, value: undefined };
+        throw error;
     }
+}
+
+function extractOptionsBlock(content: string): {
+    match: RegExpMatchArray | null;
+    value: unknown;
+} {
+    const expression = new RegExp('```options\\s*([\\s\\S]*?)\\s*```');
+    const match = content.match(expression);
+    if (!match?.[1]) {
+        return { match, value: undefined };
+    }
+
+    try {
+        return { match, value: JSON.parse(match[1]) as unknown };
+    } catch (error: unknown) {
+        if (!(error instanceof SyntaxError)) throw error;
+        return { match, value: parseNumberedOptions(match[1]) };
+    }
+}
+
+function parseNumberedOptions(content: string): ChatMessageOption[] {
+    return content
+        .split(/\r?\n/)
+        .map((line) => line.trim().match(/^(?:\d+[.)]|[-*])\s+(.+)$/)?.[1]?.trim())
+        .filter((label): label is string => Boolean(label))
+        .map((label) => ({
+            label,
+            prompt: `Áp dụng lựa chọn: ${label}`,
+        }));
 }
 
 function isChatMessageOption(value: unknown): value is ChatMessageOption {

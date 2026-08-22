@@ -3,9 +3,11 @@ import path from 'node:path';
 import fs from 'node:fs';
 import react from '@vitejs/plugin-react';
 import { defineConfig, loadEnv, type Plugin } from 'vite';
+import { getErrorMessage } from './src/core/utils/errors';
+import { DEEPSEEK_MAX_REQUEST_BYTES } from './src/core/services/deepSeekLimits';
 const DEEPSEEK_API_URL = 'https://api.deepseek.com/chat/completions';
 const DEEPSEEK_PROXY_PATH = '/api/deepseek/chat/completions';
-const MAX_REQUEST_BYTES = 2 * 1024 * 1024;
+const MAX_REQUEST_BYTES = DEEPSEEK_MAX_REQUEST_BYTES;
 type NextFunction = (error?: unknown) => void;
 async function readRequestBody(request: IncomingMessage): Promise<string> {
     const chunks: Buffer[] = [];
@@ -14,7 +16,7 @@ async function readRequestBody(request: IncomingMessage): Promise<string> {
         const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
         size += buffer.length;
         if (size > MAX_REQUEST_BYTES) {
-            throw new Error('DeepSeek request vượt quá giới hạn 2 MB.');
+            throw new Error(`DeepSeek request vượt quá giới hạn ${DEEPSEEK_MAX_REQUEST_BYTES / 1024 / 1024} MB.`);
         }
         chunks.push(buffer);
     }
@@ -32,8 +34,8 @@ function getLatestApiKey(initialApiKey: string): string {
             }
         }
     }
-    catch (e) {
-        console.warn('Failed to dynamically read .env:', e);
+    catch (error: unknown) {
+        console.warn(`Không thể đọc khóa API mới nhất từ .env; sử dụng cấu hình ban đầu. ${getErrorMessage(error)}`);
     }
     return initialApiKey;
 }
@@ -74,7 +76,7 @@ function deepSeekProxy(apiKey: string): Plugin {
             response.end(payload);
         }
         catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'DeepSeek proxy gặp lỗi.';
+            const message = getErrorMessage(error, 'DeepSeek proxy gặp lỗi.');
             response.statusCode = 502;
             response.end(JSON.stringify({ error: { message } }));
         }

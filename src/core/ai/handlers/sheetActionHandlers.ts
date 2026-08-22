@@ -11,6 +11,10 @@ export async function executeSheetAction(
   makeResult: (action: AgentAction, status: 'success' | 'failed' | 'cancelled', message: string, extra?: Partial<ActionExecutionResult>) => ActionExecutionResult
 ): Promise<{ result: ActionExecutionResult; summary: string } | null> {
   const rows = context.rows;
+  const failWithoutTargetSheet = (targetAction: AgentAction, operation: string) => {
+    const msg = `Không thể ${operation} vì chưa xác định được trang tính đích. Hãy nạp hoặc chọn đúng Google Sheet trước.`;
+    return { result: makeResult(targetAction, 'failed', msg), summary: msg };
+  };
 
   if (action.type === 'create_spreadsheet' && action.title) {
     if (!context.onCreateSpreadsheet) throw new Error('Chức năng tạo file Google Sheets chưa được kết nối.');
@@ -72,6 +76,7 @@ export async function executeSheetAction(
 
   if (action.type === 'freeze_rows_cols') {
     const targetSheet = action.sheetTitle || activeSheetTitle;
+    if (!targetSheet.trim()) return failWithoutTargetSheet(action, 'cố định hàng/cột');
     await context.onFreezeRowsCols?.(targetSheet, action.frozenRows ?? 1, action.frozenCols ?? 0);
     const msg = `Cố định ${action.frozenRows ?? 1} hàng đầu trên "${targetSheet}"`;
     return { result: makeResult(action, 'success', msg, { sheetTitle: targetSheet }), summary: msg };
@@ -93,12 +98,13 @@ export async function executeSheetAction(
 
   if (action.type === 'format_cells') {
     const targetSheet = action.sheetTitle || activeSheetTitle;
+    if (!targetSheet.trim()) return failWithoutTargetSheet(action, 'định dạng ô');
     const hasFormatting = !!(action.backgroundColor || action.fontColor || action.bold !== undefined || action.italic !== undefined || action.fontSize || action.fontFamily || action.alignment);
     if (!hasFormatting) {
-      const msg = `Bỏ qua format_cells trên "${targetSheet}" — không có thuộc tính định dạng nào (backgroundColor, fontColor, bold, fontSize, v.v.)`;
+      const msg = `Chưa thể định dạng các ô trên "${targetSheet}" vì chưa có thông tin định dạng.`;
       return { result: makeResult(action, 'failed', msg, { sheetTitle: targetSheet }), summary: msg };
     }
-    await context.onFormatCells?.(targetSheet, action.range || '1:1', {
+    const applied = await context.onFormatCells?.(targetSheet, action.range || '1:1', {
       backgroundColor: action.backgroundColor,
       fontColor: action.fontColor,
       bold: action.bold,
@@ -107,12 +113,17 @@ export async function executeSheetAction(
       fontFamily: action.fontFamily,
       alignment: action.alignment,
     });
+    if (applied === false) {
+      const msg = `Không thể định dạng dải ô "${action.range || '1:1'}" trên "${targetSheet}".`;
+      return { result: makeResult(action, 'failed', msg, { sheetTitle: targetSheet }), summary: msg };
+    }
     const msg = `Định dạng dải ô "${action.range || '1:1'}" trên "${targetSheet}"`;
     return { result: makeResult(action, 'success', msg, { sheetTitle: targetSheet }), summary: msg };
   }
 
   if (action.type === 'auto_resize_columns') {
     const targetSheet = action.sheetTitle || activeSheetTitle;
+    if (!targetSheet.trim()) return failWithoutTargetSheet(action, 'tự động căn chỉnh cột');
     await context.onAutoResizeColumns?.(targetSheet, action.startCol, action.endCol);
     const msg = `Tự động căn chỉnh độ rộng các cột trên "${targetSheet}"`;
     return { result: makeResult(action, 'success', msg, { sheetTitle: targetSheet }), summary: msg };
@@ -120,6 +131,7 @@ export async function executeSheetAction(
 
   if (action.type === 'set_column_width') {
     const targetSheet = action.sheetTitle || activeSheetTitle;
+    if (!targetSheet.trim()) return failWithoutTargetSheet(action, 'điều chỉnh độ rộng cột');
     context.onSetColumnWidth?.(targetSheet, action.pixelSize || 160, action.startCol, action.endCol);
     const msg = `Mở rộng độ rộng các cột lên ${action.pixelSize || 160}px trên "${targetSheet}"`;
     return { result: makeResult(action, 'success', msg, { sheetTitle: targetSheet }), summary: msg };

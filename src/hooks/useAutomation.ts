@@ -4,7 +4,7 @@ import { AutomationEngine } from '@/core/engine/automationEngine';
 import { ExcelParser } from '@/core/parsers/excelParser';
 import { GoogleSheetReader } from '@/core/parsers/googleSheetReader';
 import { GoogleSyncService, SheetTabInfo } from '@/core/services/googleSyncService';
-import { getErrorMessage } from '@/core/utils/errors';
+import { getUserErrorMessage } from '@/core/utils/errors';
 import type { SheetDataIndex } from '@/core/ai/agentTypes';
 
 const ACTIVE_SPREADSHEET_URL_KEY = 'autoflow_active_spreadsheet_url';
@@ -13,19 +13,19 @@ function readActiveSpreadsheetUrl(): string {
     if (typeof window === 'undefined') return '';
     try {
         return sessionStorage.getItem(ACTIVE_SPREADSHEET_URL_KEY) || '';
-    } catch (error: unknown) {
-        console.warn(`Không thể khôi phục workbook đang hoạt động: ${getErrorMessage(error)}`);
+    } catch {
         return '';
     }
 }
 
-function storeActiveSpreadsheetUrl(url: string): void {
-    if (typeof window === 'undefined') return;
+function storeActiveSpreadsheetUrl(url: string): boolean {
+    if (typeof window === 'undefined') return false;
     try {
         if (url) sessionStorage.setItem(ACTIVE_SPREADSHEET_URL_KEY, url);
         else sessionStorage.removeItem(ACTIVE_SPREADSHEET_URL_KEY);
-    } catch (error: unknown) {
-        console.warn(`Không thể lưu workbook đang hoạt động: ${getErrorMessage(error)}`);
+        return true;
+    } catch {
+        return false;
     }
 }
 
@@ -36,8 +36,8 @@ export function useAutomation() {
     const [url, setUrl] = useState<string>(initialUrlRef.current);
     const urlRef = useRef(initialUrlRef.current);
     const spreadsheetIdRef = useRef<string | null>(GoogleSheetReader.extractSpreadsheetId(initialUrlRef.current));
-    const [activeSourceId, setActiveSourceId] = useState<DataSourceId>('google_sheets');
-    const [stage, setStage] = useState<PipelineStage>('ready');
+    const [activeSourceId, setActiveSourceId] = useState<DataSourceId | null>(null);
+    const [stage, setStage] = useState<PipelineStage>('idle');
     const [rows, setRows] = useState<DataRow[]>([]);
     const [allSheetRows, setAllSheetRows] = useState<SheetDataIndex>({});
     const allSheetRowsRef = useRef<SheetDataIndex>({});
@@ -47,8 +47,8 @@ export function useAutomation() {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [sheetTabs, setSheetTabs] = useState<SheetTabInfo[]>([]);
     const [allSheetHeaders, setAllSheetHeaders] = useState<Record<string, string[]>>({});
-    const [activeSheetTitle, setActiveSheetTitle] = useState<string>('Sheet1');
-    const activeSheetTitleRef = useRef('Sheet1');
+    const [activeSheetTitle, setActiveSheetTitle] = useState<string>('');
+    const activeSheetTitleRef = useRef('');
     const appendLog = useCallback((id: string, level: LogEntry['level'], message: string) => {
         setLogs((prev) => [
             ...prev,
@@ -124,8 +124,7 @@ export function useAutomation() {
                     try {
                         realRows = await GoogleSyncService.fetchSheet(spreadsheetId, selectedTab);
                     }
-                    catch (e) {
-                        console.warn('GoogleSync API failed, falling back to public reader:', e);
+                    catch {
                         const res = await GoogleSheetReader.fetchRealGoogleSheet(targetUrl, selectedTab);
                         realRows = res.rows;
                         if (res.headers && res.headers.length > 0) {
@@ -179,15 +178,19 @@ export function useAutomation() {
             }
         }
         catch (error: unknown) {
-            const message = getErrorMessage(error, 'Không thể đọc Google Sheet.');
-            console.error(message);
-            appendLog(`err-${Date.now()}`, 'error', `Lỗi đọc Google Sheet: ${message}`);
+            const message = getUserErrorMessage(error, 'Không thể đọc Google Sheet. Vui lòng thử lại.');
+            appendLog(`err-${Date.now()}`, 'error', `Không thể đọc Google Sheet. ${message}`);
             setStage('ready');
         }
         finally {
             setIsLoading(false);
         }
     }, [engine]);
+    const fetchFromSpreadsheetId = useCallback((spreadsheetId: string, sheetTitle?: string) => {
+        const normalizedId = spreadsheetId.trim();
+        if (!normalizedId) return;
+        return fetchFromUrl(`https://docs.google.com/spreadsheets/d/${normalizedId}/edit`, sheetTitle);
+    }, [fetchFromUrl]);
     const selectSheetTab = useCallback((sheetTitle: string) => {
         setActiveSheetTitle(sheetTitle);
         activeSheetTitleRef.current = sheetTitle;
@@ -221,9 +224,8 @@ export function useAutomation() {
             appendLog(`file-${Date.now()}`, 'success', `Đọc tệp thành công: ${file.name} (${parsedRows.length} hàng)`);
         }
         catch (error: unknown) {
-            const message = getErrorMessage(error, 'Không thể đọc tệp.');
-            console.error(message);
-            appendLog(`err-${Date.now()}`, 'error', `Lỗi đọc tệp: ${message}`);
+            const message = getUserErrorMessage(error, 'Không thể đọc tệp. Vui lòng kiểm tra định dạng và thử lại.');
+            appendLog(`err-${Date.now()}`, 'error', `Không thể đọc tệp. ${message}`);
         }
         finally {
             setIsLoading(false);
@@ -235,16 +237,16 @@ export function useAutomation() {
         setAllSheetHeaders((prev) => ({ ...prev, [targetTitle]: newHeaders }));
         if (spreadsheetId) {
             if (!GoogleSyncService.getAccessToken()) {
-                appendLog(`warn-auth-${Date.now()}`, 'warn', `⚠️ Chưa Đăng nhập Google: Đã cập nhật tiêu đề cột trên giao diện. Vui lòng bấm "Đăng nhập Google" ở góc trên để lưu lên Google Sheet thật!`);
+                appendLog(`warn-auth-${Date.now()}`, 'warn', `Chưa đăng nhập Google. Tiêu đề cột đã cập nhật trên giao diện; hãy đăng nhập để đồng bộ lên Google Sheets.`);
                 return;
             }
             GoogleSyncService.updateHeaders(spreadsheetId, targetTitle, newHeaders)
                 .then(() => {
-                appendLog(`sync-headers-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã cập nhật ${newHeaders.length} tiêu đề cột trên trang "${targetTitle}" Google Sheet thật.`);
+                appendLog(`sync-headers-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã cập nhật ${newHeaders.length} tiêu đề cột trên trang "${targetTitle}" Google Sheet.`);
                 void fetchFromUrl(url, targetTitle);
             })
-                .catch((err) => {
-                appendLog(`sync-headers-err-${Date.now()}`, 'error', `Lỗi cập nhật tiêu đề cột trên Google Sheet: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-headers-err-${Date.now()}`, 'error', `Không thể cập nhật tiêu đề cột trên Google Sheet. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, activeSheetTitle, fetchFromUrl]);
@@ -256,7 +258,7 @@ export function useAutomation() {
         appendLog(`spreadsheet-${Date.now()}`, 'success', `Đã tạo file Google Sheets mới "${title}".`);
         return created;
     }, [fetchFromUrl, appendLog]);
-    const createSheet = useCallback(async (sheetTitle: string, initialHeaders: string[] = ['id', 'name']) => {
+    const createSheet = useCallback(async (sheetTitle: string, initialHeaders: string[] = []) => {
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(urlRef.current);
         const newTab: SheetTabInfo = { title: sheetTitle, sheetId: Date.now() };
         setSheetTabs((prev) => (prev.some((t) => t.title.toLowerCase() === sheetTitle.toLowerCase()) ? prev : [...prev, newTab]));
@@ -272,15 +274,15 @@ export function useAutomation() {
         });
         if (spreadsheetId) {
             if (!GoogleSyncService.getAccessToken()) {
-                appendLog(`warn-auth-${Date.now()}`, 'warn', `⚠️ Chưa Đăng nhập Google: Đã tạo trang "${sheetTitle}" trên giao diện. Hãy bấm "Đăng nhập Google" để tạo trên Google Sheet thật!`);
+                appendLog(`warn-auth-${Date.now()}`, 'warn', `Chưa đăng nhập Google. Trang "${sheetTitle}" đã tạo trên giao diện; hãy đăng nhập để đồng bộ lên Google Sheets.`);
                 return;
             }
             try {
-                const sheetId = await GoogleSyncService.addSheetTab(spreadsheetId, sheetTitle, initialHeaders);
-                appendLog(`sync-sheet-add-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã tạo thành công trang tính mới "${sheetTitle}" trên Google Sheet thật (ID: ${sheetId}).`);
+                await GoogleSyncService.addSheetTab(spreadsheetId, sheetTitle, initialHeaders);
+                appendLog(`sync-sheet-add-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã tạo trang tính mới "${sheetTitle}" trên Google Sheet.`);
             } catch (error: unknown) {
-                const message = getErrorMessage(error, 'Không thể tạo trang tính mới.');
-                appendLog(`sync-sheet-err-${Date.now()}`, 'error', `Lỗi tạo trang mới trên Google Sheet: ${message}`);
+                const message = getUserErrorMessage(error, 'Không thể tạo trang tính mới. Vui lòng thử lại.');
+                appendLog(`sync-sheet-err-${Date.now()}`, 'error', `Không thể tạo trang mới trên Google Sheet. ${message}`);
                 throw error;
             }
         }
@@ -290,16 +292,16 @@ export function useAutomation() {
         setSheetTabs((prev) => prev.filter((t) => t.title.toLowerCase() !== sheetTitle.toLowerCase()));
         if (spreadsheetId) {
             if (!GoogleSyncService.getAccessToken()) {
-                appendLog(`warn-auth-${Date.now()}`, 'warn', `⚠️ Chưa Đăng nhập Google: Đã xóa tab "${sheetTitle}" trên giao diện. Vui lòng bấm "Đăng nhập Google" để xóa trên Google Sheet thật!`);
+                appendLog(`warn-auth-${Date.now()}`, 'warn', `Chưa đăng nhập Google. Trang "${sheetTitle}" đã xóa trên giao diện; hãy đăng nhập để đồng bộ thay đổi lên Google Sheets.`);
                 return;
             }
             GoogleSyncService.deleteSheetTab(spreadsheetId, sheetTitle)
                 .then(() => {
-                appendLog(`sync-sheet-del-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã xóa hoàn toàn trang tính "${sheetTitle}" trên Google Sheet thật.`);
+                appendLog(`sync-sheet-del-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã xóa trang tính "${sheetTitle}" trên Google Sheet.`);
                 void fetchFromUrl(url);
             })
-                .catch((err) => {
-                appendLog(`sync-sheet-err-${Date.now()}`, 'error', `Lỗi xóa trang trên Google Sheet: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-sheet-err-${Date.now()}`, 'error', `Không thể xóa trang trên Google Sheet. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, fetchFromUrl]);
@@ -309,11 +311,11 @@ export function useAutomation() {
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             GoogleSyncService.duplicateSheetTab(spreadsheetId, sourceTitle, targetName)
                 .then(() => {
-                appendLog(`sync-dup-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã nhân bản trang "${sourceTitle}" thành "${targetName}".`);
+                appendLog(`sync-dup-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã nhân bản trang "${sourceTitle}" thành "${targetName}".`);
                 void fetchFromUrl(url, targetName);
             })
-                .catch((err) => {
-                appendLog(`sync-dup-err-${Date.now()}`, 'error', `Lỗi nhân bản trang: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-dup-err-${Date.now()}`, 'error', `Không thể nhân bản trang. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, fetchFromUrl]);
@@ -326,11 +328,11 @@ export function useAutomation() {
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             GoogleSyncService.renameSheetTab(spreadsheetId, oldTitle, newTitle)
                 .then(() => {
-                appendLog(`sync-ren-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã đổi tên trang "${oldTitle}" thành "${newTitle}".`);
+                appendLog(`sync-ren-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã đổi tên trang "${oldTitle}" thành "${newTitle}".`);
                 void fetchFromUrl(url, newTitle);
             })
-                .catch((err) => {
-                appendLog(`sync-ren-err-${Date.now()}`, 'error', `Lỗi đổi tên trang: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-ren-err-${Date.now()}`, 'error', `Không thể đổi tên trang. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, activeSheetTitle, fetchFromUrl]);
@@ -345,11 +347,11 @@ export function useAutomation() {
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             GoogleSyncService.addColumn(spreadsheetId, targetTitle, columnName, currentHeaders)
                 .then(() => {
-                appendLog(`sync-addcol-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã thêm cột "${columnName}" vào trang "${targetTitle}".`);
+                appendLog(`sync-addcol-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã thêm cột "${columnName}" vào trang "${targetTitle}".`);
                 void fetchFromUrl(url, targetTitle);
             })
-                .catch((err) => {
-                appendLog(`sync-col-err-${Date.now()}`, 'error', `Lỗi thêm cột: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-col-err-${Date.now()}`, 'error', `Không thể thêm cột. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, activeSheetTitle, allSheetHeaders, fetchFromUrl]);
@@ -362,24 +364,24 @@ export function useAutomation() {
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             GoogleSyncService.deleteColumn(spreadsheetId, targetTitle, colKey, currentHeaders)
                 .then(() => {
-                appendLog(`sync-delcol-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã xóa cột "${colKey}" khỏi trang "${targetTitle}".`);
+                appendLog(`sync-delcol-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã xóa cột "${colKey}" khỏi trang "${targetTitle}".`);
                 void fetchFromUrl(url, targetTitle);
             })
-                .catch((err) => {
-                appendLog(`sync-col-err-${Date.now()}`, 'error', `Lỗi xóa cột: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-col-err-${Date.now()}`, 'error', `Không thể xóa cột. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, activeSheetTitle, allSheetHeaders, fetchFromUrl]);
     const freezeRowsCols = useCallback(async (sheetTitle: string, frozenRows: number = 1, frozenCols: number = 0) => {
         const targetTitle = sheetTitle || activeSheetTitle;
-        const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
+        const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(urlRef.current);
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             try {
                 await GoogleSyncService.freezeRowsCols(spreadsheetId, targetTitle, frozenRows, frozenCols);
-                appendLog(`sync-frz-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã cố định ${frozenRows} hàng đầu và ${frozenCols} cột trên trang "${targetTitle}".`);
+                appendLog(`sync-frz-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã cố định ${frozenRows} hàng đầu và ${frozenCols} cột trên trang "${targetTitle}".`);
             } catch (error: unknown) {
-                const message = getErrorMessage(error, 'Không thể cố định hàng/cột.');
-                appendLog(`sync-frz-err-${Date.now()}`, 'error', `Lỗi cố định hàng/cột: ${message}`);
+                const message = getUserErrorMessage(error, 'Không thể cố định hàng/cột. Vui lòng thử lại.');
+                appendLog(`sync-frz-err-${Date.now()}`, 'error', `Không thể cố định hàng/cột. ${message}`);
                 throw error;
             }
         }
@@ -392,11 +394,11 @@ export function useAutomation() {
         if (colIndex !== -1 && spreadsheetId && GoogleSyncService.getAccessToken()) {
             GoogleSyncService.sortRange(spreadsheetId, targetTitle, colIndex, ascending)
                 .then(() => {
-                appendLog(`sync-sort-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã sắp xếp trang "${targetTitle}" theo cột "${colKey}" (${ascending ? 'A-Z' : 'Z-A'}).`);
+                appendLog(`sync-sort-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã sắp xếp trang "${targetTitle}" theo cột "${colKey}" (${ascending ? 'A-Z' : 'Z-A'}).`);
                 void fetchFromUrl(url, targetTitle);
             })
-                .catch((err) => {
-                appendLog(`sync-sort-err-${Date.now()}`, 'error', `Lỗi sắp xếp: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-sort-err-${Date.now()}`, 'error', `Không thể sắp xếp dữ liệu. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, activeSheetTitle, allSheetHeaders, fetchFromUrl]);
@@ -406,11 +408,11 @@ export function useAutomation() {
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             GoogleSyncService.updateRangeValues(spreadsheetId, targetTitle, rangeA1, values)
                 .then(() => {
-                appendLog(`sync-range-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã cập nhật dải ô "${rangeA1}" trên trang "${targetTitle}".`);
+                appendLog(`sync-range-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã cập nhật vùng ô "${rangeA1}" trên trang "${targetTitle}".`);
                 void fetchFromUrl(url, targetTitle);
             })
-                .catch((err) => {
-                appendLog(`sync-range-err-${Date.now()}`, 'error', `Lỗi cập nhật dải ô: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-range-err-${Date.now()}`, 'error', `Không thể cập nhật vùng ô. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, activeSheetTitle, fetchFromUrl]);
@@ -422,23 +424,26 @@ export function useAutomation() {
         fontSize?: number;
         fontFamily?: string;
         alignment?: 'LEFT' | 'CENTER' | 'RIGHT';
-    } = {}) => {
+    } = {}): Promise<boolean | void> => {
         const targetTitle = sheetTitle || activeSheetTitle;
-        const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
+        const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(urlRef.current);
+        if (!spreadsheetId || !GoogleSyncService.getAccessToken()) return false;
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             try {
                 const applied = await GoogleSyncService.formatCells(spreadsheetId, targetTitle, rangeA1, options);
                 if (applied) {
-                    appendLog(`sync-fmt-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã định dạng màu sắc/font dải ô "${rangeA1}" trên trang "${targetTitle}".`);
+                    appendLog(`sync-fmt-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã định dạng vùng ô "${rangeA1}" trên trang "${targetTitle}".`);
                 } else {
-                    appendLog(`sync-fmt-noop-${Date.now()}`, 'warn', `Không có thuộc tính định dạng nào được chỉ định cho dải ô "${rangeA1}" trên trang "${targetTitle}". Hãy chỉ định backgroundColor, fontColor, bold, fontSize, v.v.`);
+                    appendLog(`sync-fmt-noop-${Date.now()}`, 'warn', `Chưa có thông tin định dạng cho vùng ô "${rangeA1}" trên trang "${targetTitle}".`);
                 }
-            } catch (error: unknown) {
-                const message = getErrorMessage(error, 'Không thể định dạng ô.');
-                appendLog(`sync-fmt-err-${Date.now()}`, 'error', `Lỗi định dạng ô: ${message}`);
+                return applied;
+        } catch (error: unknown) {
+                const message = getUserErrorMessage(error, 'Không thể định dạng ô. Vui lòng thử lại.');
+                appendLog(`sync-fmt-err-${Date.now()}`, 'error', `Không thể định dạng ô. ${message}`);
                 throw error;
             }
         }
+        return false;
     }, [url, activeSheetTitle]);
     const addChart = useCallback((sheetTitle: string, chartType: 'COLUMN' | 'BAR' | 'LINE' | 'PIE' = 'COLUMN', title: string = 'Báo Cáo Thống Kê', domainColIndex: number = 0, seriesColIndex: number = 1, rowCount: number = 10, rowIndexOffset: number = 0) => {
         const targetTitle = sheetTitle || activeSheetTitle;
@@ -446,10 +451,10 @@ export function useAutomation() {
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             GoogleSyncService.addChart(spreadsheetId, targetTitle, chartType, title, domainColIndex, seriesColIndex, rowCount, rowIndexOffset)
                 .then(() => {
-                appendLog(`sync-chart-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã tạo biểu đồ "${title}" (${chartType}) trên trang "${targetTitle}".`);
+                appendLog(`sync-chart-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã tạo biểu đồ "${title}" trên trang "${targetTitle}".`);
             })
-                .catch((err) => {
-                appendLog(`sync-chart-err-${Date.now()}`, 'error', `Lỗi tạo biểu đồ: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-chart-err-${Date.now()}`, 'error', `Không thể tạo biểu đồ. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, activeSheetTitle]);
@@ -459,10 +464,10 @@ export function useAutomation() {
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             GoogleSyncService.clearCharts(spreadsheetId, targetTitle)
                 .then(() => {
-                appendLog(`sync-clearcharts-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã xóa toàn bộ biểu đồ trên trang "${targetTitle}".`);
+                appendLog(`sync-clearcharts-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã xóa toàn bộ biểu đồ trên trang "${targetTitle}".`);
             })
-                .catch((err) => {
-                appendLog(`sync-clearcharts-err-${Date.now()}`, 'error', `Lỗi xóa biểu đồ: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-clearcharts-err-${Date.now()}`, 'error', `Không thể xóa biểu đồ. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, activeSheetTitle]);
@@ -473,16 +478,16 @@ export function useAutomation() {
         const targetRow = updated.find((r) => r.id === rowId);
         if (spreadsheetId && colKey && targetRow) {
             if (!GoogleSyncService.getAccessToken()) {
-                appendLog(`warn-auth-${Date.now()}`, 'warn', `⚠️ Chưa Đăng nhập Google: Đã cập nhật trên giao diện. Bấm "Đăng nhập Google" ở góc trên để đồng bộ trực tiếp lên Google Sheet thật!`);
+                appendLog(`warn-auth-${Date.now()}`, 'warn', `Chưa đăng nhập Google. Thay đổi đã lưu trên giao diện; hãy đăng nhập để đồng bộ lên Google Sheets.`);
                 return;
             }
             const allHeaders = Object.keys(updatedData);
             GoogleSyncService.updateCell(spreadsheetId, activeSheetTitle, targetRow.rowNumber, colKey, allHeaders, newValue)
                 .then(() => {
-                appendLog(`sync-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã cập nhật ô "${colKey}" = "${newValue}" trên trang "${activeSheetTitle}".`);
+                appendLog(`sync-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã cập nhật ô "${colKey}" trên trang "${activeSheetTitle}".`);
             })
-                .catch((err) => {
-                appendLog(`sync-err-${Date.now()}`, 'error', `Lỗi đồng bộ lên Google Sheet: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-err-${Date.now()}`, 'error', `Không thể đồng bộ lên Google Sheet. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [engine, url, activeSheetTitle]);
@@ -497,7 +502,7 @@ export function useAutomation() {
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
         if (spreadsheetId) {
             if (!GoogleSyncService.getAccessToken()) {
-                appendLog(`warn-auth-${Date.now()}`, 'warn', `⚠️ Chưa Đăng nhập Google: Đã sửa ${updates.length} ô trên giao diện. Hãy bấm "Đăng nhập Google" ở thanh trên cùng để lưu lên Google Sheet thật!`);
+                appendLog(`warn-auth-${Date.now()}`, 'warn', `Chưa đăng nhập Google. Đã cập nhật ${updates.length} ô trên giao diện; hãy đăng nhập để lưu thay đổi lên Google Sheets.`);
                 return;
             }
             const syncRequests = updates.flatMap((u) => {
@@ -510,10 +515,10 @@ export function useAutomation() {
             });
             void Promise.all(syncRequests)
                 .then(() => {
-                appendLog(`sync-batch-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã cập nhật ${syncRequests.length} ô lên Google Sheet thật.`);
+                appendLog(`sync-batch-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã cập nhật ${syncRequests.length} ô trên Google Sheet.`);
             })
-                .catch((err) => {
-                appendLog(`sync-batch-error-${Date.now()}`, 'error', `Lỗi cập nhật hàng loạt: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-batch-error-${Date.now()}`, 'error', `Không thể cập nhật hàng loạt. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
                 void fetchFromUrl(url, activeSheetTitle);
             });
         }
@@ -526,15 +531,15 @@ export function useAutomation() {
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(url);
         if (spreadsheetId && targets.length > 0) {
             if (!GoogleSyncService.getAccessToken()) {
-                appendLog(`warn-auth-${Date.now()}`, 'warn', `⚠️ Chưa Đăng nhập Google: Đã xóa ${targets.length} dòng trên giao diện. Vui lòng bấm nút "Đăng nhập Google" ở góc trên bên phải để xóa trực tiếp trên Google Sheet thật!`);
+                appendLog(`warn-auth-${Date.now()}`, 'warn', `Chưa đăng nhập Google. Đã xóa ${targets.length} hàng trên giao diện; hãy đăng nhập để đồng bộ thay đổi lên Google Sheets.`);
                 return;
             }
             GoogleSyncService.deleteRowsByTitle(spreadsheetId, activeSheetTitle, targets.map((row) => row.rowNumber))
                 .then(() => {
-                appendLog(`sync-delete-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã xóa ${targets.length} hàng trên Google Sheet thật (${activeSheetTitle}).`);
+                appendLog(`sync-delete-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã xóa ${targets.length} hàng trên Google Sheet (${activeSheetTitle}).`);
             })
-                .catch((err) => {
-                appendLog(`sync-delete-error-${Date.now()}`, 'error', `Lỗi xóa hàng trên Google Sheet: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-delete-error-${Date.now()}`, 'error', `Không thể xóa hàng trên Google Sheet. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
                 void fetchFromUrl(url, activeSheetTitle);
             });
         }
@@ -552,15 +557,15 @@ export function useAutomation() {
         }
         if (spreadsheetId) {
             if (!GoogleSyncService.getAccessToken()) {
-                appendLog(`warn-auth-${Date.now()}`, 'warn', `⚠️ Chưa Đăng nhập Google: Đã xóa dữ liệu trên giao diện. Vui lòng bấm nút "Đăng nhập Google" ở góc trên để xóa sạch dữ liệu trên Google Sheet thật!`);
+                appendLog(`warn-auth-${Date.now()}`, 'warn', `Chưa đăng nhập Google. Dữ liệu đã xóa trên giao diện; hãy đăng nhập để đồng bộ thay đổi lên Google Sheets.`);
                 return;
             }
             GoogleSyncService.clearSheet(spreadsheetId, targetTitle)
                 .then(() => {
-                appendLog(`sync-clear-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã xóa toàn bộ dữ liệu trên trang "${targetTitle}" Google Sheet.`);
+                appendLog(`sync-clear-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã xóa toàn bộ dữ liệu trên trang "${targetTitle}" Google Sheet.`);
             })
-                .catch((err) => {
-                appendLog(`sync-clear-err-${Date.now()}`, 'error', `Lỗi xóa dữ liệu trên Google Sheet: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-clear-err-${Date.now()}`, 'error', `Không thể xóa dữ liệu trên Google Sheet. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
                 if (targetTitle.toLowerCase() === activeSheetTitleRef.current.toLowerCase()) {
                     void fetchFromUrl(url, activeSheetTitle);
                 }
@@ -576,6 +581,9 @@ export function useAutomation() {
         ]));
         for (const [key, value] of Object.entries(customData || {})) {
             if (!Object.keys(rowData).some((header) => header.toLowerCase() === key.toLowerCase())) rowData[key] = value;
+        }
+        if (Object.keys(rowData).length === 0) {
+            throw new Error('Không thể thêm hàng vì chưa có cấu trúc dữ liệu. Hãy tải dữ liệu hoặc tạo cột trước.');
         }
         let newRow: DataRow;
         if (targetTitle.toLowerCase() === activeSheetTitleRef.current.toLowerCase()) {
@@ -601,16 +609,16 @@ export function useAutomation() {
         const spreadsheetId = GoogleSheetReader.extractSpreadsheetId(urlRef.current);
         if (spreadsheetId && newRow) {
             if (!GoogleSyncService.getAccessToken()) {
-                appendLog(`warn-auth-${Date.now()}`, 'warn', `⚠️ Chưa Đăng nhập Google: Đã thêm hàng trên giao diện. Vui lòng bấm nút "Đăng nhập Google" ở góc trên để ghi trực tiếp vào Google Sheet thật!`);
+                appendLog(`warn-auth-${Date.now()}`, 'warn', `Chưa đăng nhập Google. Hàng đã thêm trên giao diện; hãy đăng nhập để lưu thay đổi lên Google Sheets.`);
                 return;
             }
             try {
                 const allHeaders = Object.keys(newRow.data);
                 await GoogleSyncService.appendRow(spreadsheetId, targetTitle, allHeaders, newRow.data);
-                appendLog(`sync-add-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã thêm hàng "${newRow.data['NAME'] || newRow.data['ID']}" vào trang "${targetTitle}" Google Sheet thật.`);
+                appendLog(`sync-add-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã thêm hàng "${newRow.data['NAME'] || newRow.data['ID']}" vào trang "${targetTitle}" Google Sheet.`);
             } catch (error: unknown) {
-                const message = getErrorMessage(error, 'Không thể thêm hàng lên Google Sheet.');
-                appendLog(`sync-add-error-${Date.now()}`, 'error', `Lỗi thêm hàng lên Google Sheet: ${message}`);
+                const message = getUserErrorMessage(error, 'Không thể thêm hàng lên Google Sheet. Vui lòng thử lại.');
+                appendLog(`sync-add-error-${Date.now()}`, 'error', `Không thể thêm hàng lên Google Sheet. ${message}`);
                 throw error;
             }
         }
@@ -621,10 +629,10 @@ export function useAutomation() {
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             try {
                 await GoogleSyncService.autoResizeColumns(spreadsheetId, targetTitle, startCol, endCol);
-                appendLog(`sync-autoresize-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã tự động căn chỉnh (Auto-fit) độ rộng các cột trên trang "${targetTitle}".`);
+                appendLog(`sync-autoresize-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã tự động căn chỉnh độ rộng các cột trên trang "${targetTitle}".`);
             } catch (error: unknown) {
-                const message = getErrorMessage(error, 'Không thể tự động căn chỉnh cột.');
-                appendLog(`sync-autoresize-err-${Date.now()}`, 'error', `Lỗi tự động căn chỉnh cột: ${message}`);
+                const message = getUserErrorMessage(error, 'Không thể tự động căn chỉnh cột. Vui lòng thử lại.');
+                appendLog(`sync-autoresize-err-${Date.now()}`, 'error', `Không thể tự động căn chỉnh cột. ${message}`);
                 throw error;
             }
         }
@@ -635,10 +643,10 @@ export function useAutomation() {
         if (spreadsheetId && GoogleSyncService.getAccessToken()) {
             GoogleSyncService.setColumnWidth(spreadsheetId, targetTitle, pixelSize, startCol, endCol)
                 .then(() => {
-                appendLog(`sync-colwidth-${Date.now()}`, 'success', `[Đồng Bộ 2 Chiều] Đã mở rộng độ rộng các cột thành ${pixelSize}px trên trang "${targetTitle}".`);
+                appendLog(`sync-colwidth-${Date.now()}`, 'success', `Đồng bộ hai chiều: Đã điều chỉnh độ rộng các cột trên trang "${targetTitle}".`);
             })
-                .catch((err) => {
-                appendLog(`sync-colwidth-err-${Date.now()}`, 'error', `Lỗi đặt độ rộng cột: ${err.message}`);
+                .catch((error: unknown) => {
+                appendLog(`sync-colwidth-err-${Date.now()}`, 'error', `Không thể điều chỉnh độ rộng cột. ${getUserErrorMessage(error, 'Vui lòng thử lại.')}`);
             });
         }
     }, [url, activeSheetTitle]);
@@ -669,6 +677,7 @@ export function useAutomation() {
         selectSheetTab,
         loadFile,
         fetchFromUrl,
+        fetchFromSpreadsheetId,
         updateHeaders,
         addColumn,
         deleteColumn,

@@ -55,8 +55,8 @@ section('DeepSeek Service Contract');
 
 const deepSeekSrc = read('src/core/services/deepSeekService.ts');
 assert(
-  'Model is "deepseek-chat"',
-  deepSeekSrc.includes("model = 'deepseek-chat'")
+  'Model is "deepseek-v4-flash"',
+  deepSeekSrc.includes("model = 'deepseek-v4-flash'")
 );
 assert(
   'tool_choice is "auto"',
@@ -82,7 +82,11 @@ const toolFiles = [
 ];
 let toolsSrc = '';
 for (const f of toolFiles) {
-  try { toolsSrc += '\n' + read(f); } catch {}
+  try {
+    toolsSrc += '\n' + read(f);
+  } catch (error) {
+    throw new Error(`Unable to load tool contract source: ${f}`, { cause: error });
+  }
 }
 const toolNameRegex = /tool\(\s*'([a-z_]+)'/g;
 const toolNames = [];

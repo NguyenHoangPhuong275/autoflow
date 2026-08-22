@@ -1,4 +1,5 @@
 import React from 'react';
+import { getErrorMessage } from '@/core/utils/errors';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -12,9 +13,11 @@ interface ErrorBoundaryState {
   errorInfo: React.ErrorInfo | null;
   showDetails: boolean;
   copied: boolean;
+  copyError: string | null;
 }
 
 const IS_DEV = import.meta.env.DEV;
+const DEBUG_ERRORS = IS_DEV && import.meta.env.VITE_DEBUG_ERRORS === 'true';
 
 export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
   constructor(props: ErrorBoundaryProps) {
@@ -23,8 +26,9 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
       hasError: false,
       error: null,
       errorInfo: null,
-      showDetails: IS_DEV,
+      showDetails: false,
       copied: false,
+      copyError: null,
     };
   }
 
@@ -35,18 +39,22 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
     this.setState({ errorInfo });
 
-    console.error(
-      '[AppErrorBoundary] Uncaught component exception:',
-      '\nMessage:', error.message,
-      '\nStack:', error.stack,
-      '\nComponent Stack:', errorInfo.componentStack
-    );
+    if (DEBUG_ERRORS) {
+      console.error(
+        'Lỗi giao diện không mong muốn:',
+        '\nMessage:', error.message,
+        '\nStack:', error.stack,
+        '\nComponent Stack:', errorInfo.componentStack
+      );
+    }
 
     if (this.props.onError) {
       try {
         this.props.onError(error, errorInfo);
-      } catch (err) {
-        console.error('[AppErrorBoundary] Error in custom onError handler:', err);
+      } catch (error: unknown) {
+        if (DEBUG_ERRORS) {
+          console.error(`Không thể chạy trình xử lý lỗi tùy chỉnh: ${getErrorMessage(error)}`);
+        }
       }
     }
   }
@@ -60,8 +68,9 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
       hasError: false,
       error: null,
       errorInfo: null,
-      showDetails: IS_DEV,
+      showDetails: false,
       copied: false,
+      copyError: null,
     });
   };
 
@@ -93,10 +102,13 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
         document.execCommand('copy');
         document.body.removeChild(textarea);
       }
-      this.setState({ copied: true });
+      this.setState({ copied: true, copyError: null });
       setTimeout(() => this.setState({ copied: false }), 2500);
-    } catch (copyErr) {
-      console.warn('[AppErrorBoundary] Failed to copy error to clipboard:', copyErr);
+    } catch {
+      this.setState({
+        copied: false,
+        copyError: 'Không thể sao chép báo cáo lỗi. Hãy sao chép thủ công từ phần chi tiết.',
+      });
     }
   };
 
@@ -106,7 +118,7 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
         return this.props.fallback;
       }
 
-      const { error, errorInfo, showDetails, copied } = this.state;
+      const { error, errorInfo, showDetails, copied, copyError } = this.state;
 
       return (
         <div
@@ -160,7 +172,7 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
                 color: '#f8fafc',
               }}
             >
-              AUTOFLOW — LỖI GIAO DIỆN
+              AUTOFLOW — KHÔNG THỂ HIỂN THỊ GIAO DIỆN
             </h1>
 
             <p
@@ -171,9 +183,9 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
                 lineHeight: 1.6,
               }}
             >
-              Một thành phần giao diện vừa gặp ngoại lệ không mong muốn.
+              Ứng dụng vừa gặp sự cố không mong muốn.
               <br />
-              Dữ liệu của bạn không bị mất, bạn có thể thử khôi phục hoặc tải lại trang.
+              Dữ liệu của bạn không bị mất. Bạn có thể thử khôi phục hoặc tải lại trang.
             </p>
 
             {error && (
@@ -201,7 +213,7 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
                   }}
                 >
                   <span style={{ color: '#f87171' }}>
-                    {error.name}: {error.message}
+                    Thông tin sự cố
                   </span>
                   <button
                     onClick={this.handleToggleDetails}
@@ -214,7 +226,7 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
                       padding: '2px 6px',
                     }}
                   >
-                    {showDetails ? 'Thu gọn ▲' : 'Chi tiết ▼'}
+                    {showDetails ? 'Thu gọn ▲' : 'Xem chi tiết kỹ thuật ▼'}
                   </button>
                 </div>
 
@@ -321,6 +333,11 @@ export class AppErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorB
                 {copied ? '✓ Đã chép' : '📋 Chép lỗi'}
               </button>
             </div>
+            {copyError && (
+              <div role="alert" style={{ marginTop: 12, color: '#fda4af', fontSize: 11 }}>
+                {copyError}
+              </div>
+            )}
           </div>
         </div>
       );

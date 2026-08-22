@@ -22,8 +22,9 @@ export function useOperationTracker() {
   const counterRef = useRef(0);
 
   const startOperation = useCallback((label: OperationLabel): string => {
-    const id = `op-${label}-${++counterRef.current}-${Date.now()}`;
-    setOperations((prev) => [...prev, { id, label, startedAt: Date.now() }]);
+    const startedAt = Date.now();
+    const id = `op-${label}-${++counterRef.current}-${startedAt}`;
+    setOperations((prev) => [...prev, { id, label, startedAt }]);
     return id;
   }, []);
 

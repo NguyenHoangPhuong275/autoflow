@@ -12,7 +12,7 @@ export const SHEET_TOOLS: DeepSeekToolDefinition[] = [
     headers: {
       type: 'array',
       items: { type: 'string' },
-      description: 'Danh sách các cột ban đầu của sheet mới (ví dụ ["id", "name", "price"])',
+      description: 'Danh sách các cột ban đầu của sheet mới',
     },
   }, ['sheetTitle'])),
   tool('delete_sheet', 'Xóa hoàn toàn một trang tính (Sheet Tab) khỏi file Google Sheets.', objectSchema({
@@ -30,10 +30,10 @@ export const SHEET_TOOLS: DeepSeekToolDefinition[] = [
     sheetTitle: { type: 'string', description: 'Tên sheet muốn chuyển sang' },
   }, ['sheetTitle'])),
   tool('clear_sheet', 'Xóa sạch toàn bộ dữ liệu hàng trong sheet được chỉ định (giữ lại hàng tiêu đề).', objectSchema({
-    sheetTitle: { type: 'string', description: 'Tên sheet cần xóa sạch (ví dụ Orders, Products, Users)' },
+    sheetTitle: { type: 'string', description: 'Tên sheet cần xóa sạch' },
   }, ['sheetTitle'])),
   tool('update_headers', 'Đổi tên hoặc định dạng lại toàn bộ tiêu đề các cột (Header Hàng 1) trong sheet (ví dụ sang camelCase aB, hoa, thường).', objectSchema({
-    sheetTitle: { type: 'string', description: 'Tên sheet cần đổi tên cột (ví dụ Orders, Products, Users)' },
+    sheetTitle: { type: 'string', description: 'Tên sheet cần đổi tên cột' },
     headers: {
       type: 'array',
       items: { type: 'string' },

@@ -1,6 +1,6 @@
 import { DataRow } from '@/types';
 import { SheetTabInfo } from '@/core/services/googleSyncService';
-import { getErrorMessage, toError } from '@/core/utils/errors';
+import { toError } from '@/core/utils/errors';
 
 interface GvizCell {
   v?: unknown;
@@ -61,20 +61,9 @@ export class GoogleSheetReader {
           sheetId: idx,
         }));
       }
-    } catch (e) {
-      console.warn('Cannot auto-discover sheet tabs from HTML:', e);
+    } catch {
+      return [];
     }
-
-    if (spreadsheetId === '1afOya-FzRWZK9wrstjeXlVWvf-ZInvWO9XThNbh44w8') {
-      return [
-        { title: 'Products', sheetId: 0 },
-        { title: 'Users', sheetId: 1 },
-        { title: 'Orders', sheetId: 2 },
-        { title: 'Accounts', sheetId: 3 },
-        { title: 'Sold', sheetId: 4 },
-      ];
-    }
-
     return [];
   }
 
@@ -116,8 +105,8 @@ export class GoogleSheetReader {
           if (tabHeaders.length > 0) {
             headersMap[tabTitle] = tabHeaders;
           }
-        } catch (e) {
-          console.warn(`Failed to fetch headers for sheet "${tabTitle}":`, e);
+        } catch {
+          headersMap[tabTitle] = [];
         }
       })
     );
@@ -228,8 +217,7 @@ export class GoogleSheetReader {
         discoveredTabs,
       };
     } catch (error: unknown) {
-      console.error(`Lỗi tải Google Sheet: ${getErrorMessage(error)}`);
-      throw toError(error);
+      throw toError(error, 'Không thể tải Google Sheet.');
     }
   }
 }

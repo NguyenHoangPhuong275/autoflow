@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import { DataRow } from '@/types';
+import { toError } from '@/core/utils/errors';
 export class ExcelParser {
     public static async parseFile(file: File): Promise<DataRow[]> {
         return new Promise((resolve, reject) => {
@@ -22,13 +23,12 @@ export class ExcelParser {
                     }));
                     resolve(rows);
                 }
-                catch (err) {
-                    console.error('[ExcelParser] Error parsing workbook sheet:', err);
-                    reject(err instanceof Error ? err : new Error(String(err)));
+                catch (error: unknown) {
+                    reject(toError(error, 'Không thể phân tích tệp Excel.'));
                 }
             };
-            reader.onerror = (error) => {
-                console.error('[ExcelParser] FileReader error:', error);
+            reader.onerror = () => {
+                const error = new Error('Không thể đọc tệp Excel từ bộ nhớ trình duyệt.');
                 reject(error);
             };
             reader.readAsArrayBuffer(file);

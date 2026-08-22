@@ -16,7 +16,7 @@ import { useDraggable, clearStoredPositions } from '@/hooks/useDraggable';
 import { DataSourceId, PipelineStage } from '@/types';
 
 interface PipelineVisualizerProps {
-  activeSourceId: DataSourceId;
+  activeSourceId: DataSourceId | null;
   stage: PipelineStage;
 }
 

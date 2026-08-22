@@ -1,6 +1,6 @@
 import type { DataRow } from '@/types';
 import type { SheetTabInfo } from '@/core/google/types';
-import { getErrorMessage, readJson } from '@/core/utils/errors';
+import { readJson } from '@/core/utils/errors';
 import { GoogleAuthService } from '@/core/google/services/googleAuthService';
 
 interface SheetMetadataResponse {
@@ -10,6 +10,11 @@ interface SheetMetadataResponse {
 interface SheetValuesResponse {
   values?: unknown[][];
   error?: { message?: string };
+}
+
+export interface GoogleSheetContext {
+  headers: string[];
+  rows: DataRow[];
 }
 
 export class GoogleReadService extends GoogleAuthService {
@@ -33,13 +38,17 @@ export class GoogleReadService extends GoogleAuthService {
         title: properties.title,
         sheetId: properties.sheetId,
       }));
-    } catch (error: unknown) {
-      console.warn(`Không thể đọc metadata Google Sheet: ${getErrorMessage(error)}`);
+    } catch {
       return [];
     }
   }
 
   public static async fetchSheet(spreadsheetId: string, sheetTitle = 'Sheet1'): Promise<DataRow[]> {
+    const context = await this.fetchSheetContext(spreadsheetId, sheetTitle);
+    return context.rows;
+  }
+
+  public static async fetchSheetContext(spreadsheetId: string, sheetTitle = 'Sheet1'): Promise<GoogleSheetContext> {
     const token = this.getAccessToken();
     if (!token) {
       throw new Error('Chưa đăng nhập Google OAuth.');
@@ -56,12 +65,8 @@ export class GoogleReadService extends GoogleAuthService {
     }
 
     const values = data.values ?? [];
-    if (values.length <= 1) {
-      return [];
-    }
-
-    const headers = values[0].map((header, index) => String(header || `Cột_${index + 1}`));
-    return values.slice(1).map((row, rowIndex) => {
+    const headers = values[0]?.map((header, index) => String(header || `Cột_${index + 1}`)) ?? [];
+    const rows = values.slice(1).map((row, rowIndex) => {
       const rowData = Object.fromEntries(
         headers.map((header, columnIndex) => [header, row[columnIndex] ?? '']),
       );
@@ -72,5 +77,6 @@ export class GoogleReadService extends GoogleAuthService {
         status: 'pending' as const,
       };
     });
+    return { headers, rows };
   }
 }

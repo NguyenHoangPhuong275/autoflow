@@ -8,5 +8,5 @@ export function normalizeForMatching(value: string): string {
 }
 
 export function isFormattingRequest(value: string): boolean {
-  return /\b(format|formatting|professional|style|beautify)\b|dinh dang|chuyen nghiep|trinh bay|lam dep/.test(normalizeForMatching(value));
+  return /\b(format|formatting|professional|style|beautify|color|background|header)\b|dinh dang|chuyen nghiep|trinh bay|lam dep|to mau|mau sac|mau nen/.test(normalizeForMatching(value));
 }

@@ -5,8 +5,12 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "typecheck": "tsc --noEmit",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "test": "npm run test:contracts && npm run test:unit",
+    "test:contracts": "node scripts/contract-tests.mjs && node scripts/test-phase-0.mjs && node scripts/test-command-catalog.mjs && node scripts/test-semantic-context.mjs",
+    "test:unit": "node scripts/test-email-format.mjs && node scripts/test-formula-utils.mjs && node scripts/test-undo-engine.mjs && node scripts/test-google-services.mjs",
     "check:deepseek": "node --env-file=.env scripts/check-deepseek.mjs"
   },
   "dependencies": {

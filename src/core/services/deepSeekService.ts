@@ -1,5 +1,13 @@
 import { APP_CONFIG } from '@/core/config';
 import { readJson } from '@/core/utils/errors';
+import {
+    DEEPSEEK_CONTEXT_WINDOW_TOKENS,
+    DEEPSEEK_MAX_INPUT_TOKENS,
+    DEEPSEEK_MAX_OUTPUT_TOKENS,
+    estimateTokenCount,
+    truncateMessagesToTokenBudget,
+    truncateToTokenBudget,
+} from '@/core/services/deepSeekLimits';
 export interface DeepSeekMessage {
     role: 'system' | 'user' | 'assistant' | 'tool';
     content: string;
@@ -36,14 +44,14 @@ interface DeepSeekApiResponse {
 }
 export class DeepSeekService {
     private static readonly apiUrl = '/api/deepseek/chat/completions';
-    private static readonly model = 'deepseek-chat';
+    private static readonly model = 'deepseek-v4-flash';
     private static sanitizeContent(content: unknown): string {
         return typeof content === 'string'
-            ? content
+            ? truncateToTokenBudget(content
                 .replace(/\*/g, '')
                 .replace(/\p{Extended_Pictographic}/gu, '')
                 .replace(/\uFE0F/g, '')
-                .trim()
+                .trim(), DEEPSEEK_MAX_OUTPUT_TOKENS)
             : '';
     }
     private static async request(payload: Record<string, unknown>): Promise<DeepSeekResponseMessage> {
@@ -54,10 +62,31 @@ export class DeepSeekService {
         if (key) {
             headers['Authorization'] = `Bearer ${key}`;
         }
+        const messages = payload.messages;
+        const normalizedPayload = Array.isArray(messages)
+            ? {
+                ...payload,
+                messages: truncateMessagesToTokenBudget(messages as DeepSeekMessage[], DEEPSEEK_MAX_INPUT_TOKENS),
+            }
+            : payload;
+        const inputTokens = Array.isArray(normalizedPayload.messages)
+            ? normalizedPayload.messages.reduce((total, message) => total + estimateTokenCount(message.content), 0)
+            : 0;
+        const requestedOutputTokens = typeof normalizedPayload.max_tokens === 'number'
+            ? normalizedPayload.max_tokens
+            : DEEPSEEK_MAX_OUTPUT_TOKENS;
+        const requestPayload = {
+            ...normalizedPayload,
+            max_tokens: Math.min(
+                requestedOutputTokens,
+                DEEPSEEK_MAX_OUTPUT_TOKENS,
+                Math.max(1, DEEPSEEK_CONTEXT_WINDOW_TOKENS - inputTokens),
+            ),
+        };
         const response = await fetch(this.apiUrl, {
             method: 'POST',
             headers,
-            body: JSON.stringify(payload),
+            body: JSON.stringify(requestPayload),
         });
         const data = await readJson<DeepSeekApiResponse>(response, {});
         if (!response.ok) {
@@ -69,12 +98,12 @@ export class DeepSeekService {
         }
         return message;
     }
-    public static async chatCompletion(messages: DeepSeekMessage[], temperature = 0.3, maxTokens = 2048): Promise<string> {
+    public static async chatCompletion(messages: DeepSeekMessage[], temperature = 0.3, maxTokens = DEEPSEEK_MAX_OUTPUT_TOKENS): Promise<string> {
         const message = await this.request({
             model: this.model,
             messages,
             temperature,
-            max_tokens: maxTokens,
+            max_tokens: Math.min(maxTokens, DEEPSEEK_MAX_OUTPUT_TOKENS),
         });
         return this.sanitizeContent(message.content);
     }
@@ -88,7 +117,7 @@ export class DeepSeekService {
             tools,
             tool_choice: 'auto',
             temperature,
-            max_tokens: 2048,
+            max_tokens: DEEPSEEK_MAX_OUTPUT_TOKENS,
         });
         return {
             content: this.sanitizeContent(message.content),

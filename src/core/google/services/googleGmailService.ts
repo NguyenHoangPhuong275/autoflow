@@ -1,4 +1,4 @@
-import { getErrorMessage, readJson } from '../../utils/errors.ts';
+import { readJson } from '../../utils/errors.ts';
 import { GoogleAuthService } from './googleAuthService.ts';
 
 export interface EmailHeader {
@@ -58,12 +58,10 @@ function decodeBase64Utf8(value: string): string {
     const binary = atob(normalized);
     const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
     return new TextDecoder('utf-8').decode(bytes);
-  } catch (error: unknown) {
-    console.warn(`Không thể giải mã Gmail payload bằng UTF-8: ${getErrorMessage(error)}`);
+  } catch {
     try {
       return atob(normalized);
-    } catch (fallbackError: unknown) {
-      console.warn(`Không thể giải mã Gmail payload: ${getErrorMessage(fallbackError)}`);
+    } catch {
       return '';
     }
   }
@@ -354,8 +352,7 @@ export class GoogleGmailService extends GoogleAuthService {
       }
 
       return toEmailSummary(await readJson<GmailMessage>(response, { id: messageId, threadId: '' }));
-    } catch (error: unknown) {
-      console.warn(`Không thể đọc metadata email ${messageId}: ${getErrorMessage(error)}`);
+    } catch {
       return null;
     }
   }

@@ -1,9 +1,17 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { ChatMessage } from '@/core/ai/agentTypes';
-import { getErrorMessage } from '@/core/utils/errors';
 
 const STORAGE_KEY = 'autoflow_chat_history_v1';
 const MAX_MESSAGES = 100;
+
+function clearChatStorage(): boolean {
+  try {
+    localStorage.removeItem(STORAGE_KEY);
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function createWelcomeMessage(): ChatMessage {
   return {
@@ -18,11 +26,7 @@ export function useChatHistory() {
   const [messages, setMessagesState] = useState<ChatMessage[]>(() => [createWelcomeMessage()]);
 
   useEffect(() => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch (error: unknown) {
-      console.warn(`Không thể xóa lịch sử chat cũ: ${getErrorMessage(error)}`);
-    }
+    clearChatStorage();
   }, []);
 
   const setMessages = useCallback(
@@ -39,11 +43,7 @@ export function useChatHistory() {
   const clearHistory = useCallback(() => {
     const welcome = [createWelcomeMessage()];
     setMessagesState(welcome);
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch (error: unknown) {
-      console.warn(`Không thể xóa lịch sử chat: ${getErrorMessage(error)}`);
-    }
+    clearChatStorage();
   }, []);
 
   return { messages, setMessages, clearHistory };

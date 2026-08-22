@@ -15,7 +15,7 @@ import { CommandLineIcon as TerminalIcon, CpuChipIcon as Bot } from '@heroicons/
 import type { EmailSummary } from '@/core/google/services/googleGmailService';
 import type { GoogleDocContent } from '@/core/google/services/googleDocsService';
 import { GoogleDocsService } from '@/core/google/services/googleDocsService';
-import { getErrorMessage } from '@/core/utils/errors';
+import { getUserErrorMessage } from '@/core/utils/errors';
 import type { PermittedDocument } from '@/core/ai/agentTypes';
 
 export const App: React.FC = () => {
@@ -23,12 +23,11 @@ export const App: React.FC = () => {
   const [isDriveOpen, setIsDriveOpen] = useState(false);
   const [isGmailOpen, setIsGmailOpen] = useState(false);
   const [isDocsOpen, setIsDocsOpen] = useState(false);
+  const [appError, setAppError] = useState<string | null>(null);
   const [importedDocuments, setImportedDocuments] = useState<PermittedDocument[]>([]);
 
   const { theme, setTheme } = useTheme();
   const {
-    url,
-    setUrl,
     activeSourceId,
     stage,
     rows,
@@ -43,6 +42,7 @@ export const App: React.FC = () => {
     selectSheetTab,
     loadFile,
     fetchFromUrl,
+    fetchFromSpreadsheetId,
     updateHeaders,
     addColumn,
     deleteColumn,
@@ -73,15 +73,8 @@ export const App: React.FC = () => {
     changeSpeed,
   } = useAutomation();
 
-  const handleLoginSuccess = () => {
-    if (url.trim()) {
-      fetchFromUrl(url);
-    }
-  };
-
-  const handleSelectSheetFromDrive = (sheetUrl: string) => {
-    setUrl(sheetUrl);
-    fetchFromUrl(sheetUrl);
+  const handleSelectSheetFromDrive = (spreadsheetId: string) => {
+    fetchFromSpreadsheetId(spreadsheetId);
   };
 
   const handleImportEmails = (emails: EmailSummary[]) => {
@@ -115,15 +108,24 @@ export const App: React.FC = () => {
   };
 
   const handleSelectDocFromDrive = async (documentId: string) => {
+    setAppError(null);
     try {
       handleImportDoc(await GoogleDocsService.fetchDocument(documentId));
     } catch (error: unknown) {
-      console.error(getErrorMessage(error, 'Không thể nạp Google Docs từ Drive.'));
+      setAppError(`Không thể nạp Google Docs từ Drive. ${getUserErrorMessage(error, 'Vui lòng kiểm tra quyền truy cập và thử lại.')}`);
     }
   };
 
   return (
     <div className="min-h-screen xl:h-screen w-screen flex flex-col p-2 sm:p-2.5 gap-2 bg-[var(--app-background)] text-[var(--text-primary)] overflow-y-auto xl:overflow-hidden select-none font-mono">
+      {appError && (
+        <div role="alert" className="fixed top-3 right-3 z-[60] max-w-md rounded-lg border border-rose-500/40 bg-rose-950/90 px-4 py-3 text-xs text-rose-200 shadow-xl">
+          <div className="flex items-start gap-3">
+            <span className="flex-1">{appError}</span>
+            <button type="button" onClick={() => setAppError(null)} className="text-rose-300 hover:text-white" aria-label="Đóng thông báo lỗi">×</button>
+          </div>
+        </div>
+      )}
       <Header
         stats={stats}
         stage={stage}
@@ -133,17 +135,13 @@ export const App: React.FC = () => {
         onResume={resume}
         onReset={reset}
         onChangeSpeed={changeSpeed}
-        onLoginSuccess={handleLoginSuccess}
         theme={theme}
         onThemeChange={setTheme}
       />
 
       <ControlBar
-        url={url}
-        setUrl={setUrl}
         isLoading={isLoading}
         onFileUpload={(file) => loadFile(file)}
-        onFetchFromUrl={(targetUrl) => fetchFromUrl(targetUrl)}
         onOpenDrive={() => setIsDriveOpen(true)}
         onOpenGmail={() => setIsGmailOpen(true)}
         onOpenDocs={() => setIsDocsOpen(true)}

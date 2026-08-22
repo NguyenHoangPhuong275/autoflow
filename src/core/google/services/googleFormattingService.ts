@@ -2,6 +2,13 @@ import { detectColorToGoogleRgb } from '@/core/google/color';
 import { GoogleStructureService } from '@/core/google/services/googleStructureService';
 import { readGoogleApiError } from '@/core/google/services/googleApiUtils';
 
+function columnLabelToIndex(label: string): number {
+  return label
+    .toUpperCase()
+    .split('')
+    .reduce((index, character) => index * 26 + character.charCodeAt(0) - 64, 0) - 1;
+}
+
 export class GoogleFormattingService extends GoogleStructureService {
   public static detectColorToGoogleRgb(colorStr: string): { red: number; green: number; blue: number } {
     return detectColorToGoogleRgb(colorStr);
@@ -45,8 +52,7 @@ export class GoogleFormattingService extends GoogleStructureService {
         backgroundColor: rgbToHex(format.backgroundColor),
         fontColor: rgbToHex(format.textFormat?.foregroundColor),
       };
-    } catch (err) {
-      console.warn('[GoogleFormattingService] Failed to fetch sheet format:', err);
+    } catch {
       return null;
     }
   }
@@ -69,18 +75,27 @@ export class GoogleFormattingService extends GoogleStructureService {
     if (!token) throw new Error('Chưa đăng nhập Google.');
 
     const metadata = await this.fetchSheetMetadata(spreadsheetId);
-    const target = metadata.find((s) => s.title.toLowerCase() === sheetTitle.toLowerCase());
-    const sheetId = target ? target.sheetId : 0;
+    const target = metadata.find((s) => s.title.toLowerCase() === sheetTitle.toLowerCase()) || metadata[0];
+    if (!target) throw new Error(`Không tìm thấy trang tính đích "${sheetTitle}" trong file Google Sheets.`);
+    const sheetId = target.sheetId;
 
     let startRow = 0;
     let endRow = 1;
     let startCol = 0;
     let endCol = 10;
+    let appliesToAllRows = false;
     const isRowOnlyRange = /^\d+:\d+$/.test(rangeA1.trim())
       || rangeA1.toLowerCase() === 'header'
       || rangeA1.toLowerCase() === 'headers';
+    const isColumnOnlyRange = /^[A-Za-z]+(?::[A-Za-z]+)?$/.test(rangeA1.trim())
+      && !/^(header|headers)$/i.test(rangeA1.trim());
 
-    if (isRowOnlyRange) {
+    if (isColumnOnlyRange) {
+      const [startColumn, endColumn = startColumn] = rangeA1.trim().split(':');
+      startCol = columnLabelToIndex(startColumn);
+      endCol = columnLabelToIndex(endColumn) + 1;
+      appliesToAllRows = true;
+    } else if (isRowOnlyRange) {
       const rowMatch = rangeA1.trim().match(/^(\d+):(\d+)$/);
       if (rowMatch) {
         startRow = parseInt(rowMatch[1], 10) - 1;
@@ -102,8 +117,8 @@ export class GoogleFormattingService extends GoogleStructureService {
           const firstRow = headerData.values?.[0] || [];
           endCol = firstRow.length > 0 ? firstRow.length : 10;
         }
-      } catch (e) {
-        console.warn('Failed to fetch header columns count:', e);
+      } catch {
+        endCol = 10;
       }
     } else {
       const match = rangeA1.match(/([A-Za-z]+)?(\d+)?(?::([A-Za-z]+)?(\d+)?)?/);
@@ -155,16 +170,20 @@ export class GoogleFormattingService extends GoogleStructureService {
 
     if (fields.length === 0) return false;
 
+    const gridRange: Record<string, number> = {
+      sheetId,
+      startColumnIndex: startCol,
+      endColumnIndex: endCol,
+    };
+    if (!appliesToAllRows) {
+      gridRange.startRowIndex = startRow;
+      gridRange.endRowIndex = endRow;
+    }
+
     const requests: Array<Record<string, unknown>> = [
       {
         repeatCell: {
-          range: {
-            sheetId,
-            startRowIndex: startRow,
-            endRowIndex: endRow,
-            startColumnIndex: startCol,
-            endColumnIndex: endCol,
-          },
+          range: gridRange,
           cell: { userEnteredFormat },
           fields: fields.join(','),
         },
@@ -230,8 +249,7 @@ export class GoogleFormattingService extends GoogleStructureService {
       return targetSheet.charts
         .map((chart) => chart.chartId)
         .filter((chartId): chartId is number => chartId !== undefined);
-    } catch (err) {
-      console.warn('[GoogleFormattingService] Failed to fetch sheet chart IDs:', err);
+    } catch {
       return [];
     }
   }
@@ -419,8 +437,7 @@ export class GoogleFormattingService extends GoogleStructureService {
       const data = await res.json() as { values?: unknown[][] };
       const row = data.values?.[0] || [];
       return row.map((cell) => String(cell || '').trim()).filter(Boolean);
-    } catch (err) {
-      console.warn('[GoogleFormattingService] Failed to fetch sheet header names:', err);
+    } catch {
       return [];
     }
   }

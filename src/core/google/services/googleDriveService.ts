@@ -10,6 +10,8 @@ export interface DriveFileInfo {
   iconLink?: string;
 }
 
+export type DriveFileType = 'all' | 'supported' | 'sheets' | 'docs';
+
 interface DriveListResponse {
   files?: DriveFileInfo[];
 }
@@ -49,11 +51,22 @@ export class GoogleDriveService extends GoogleAuthService {
   }
 
   public static searchSheets(nameQuery?: string): Promise<DriveFileInfo[]> {
-    return this.listFiles({ query: this.buildTypeQuery('spreadsheet', nameQuery), pageSize: 20 });
+    return this.searchFiles({ type: 'sheets', nameQuery });
   }
 
   public static searchDocs(nameQuery?: string): Promise<DriveFileInfo[]> {
-    return this.listFiles({ query: this.buildTypeQuery('document', nameQuery), pageSize: 20 });
+    return this.searchFiles({ type: 'docs', nameQuery });
+  }
+
+  public static searchFiles(options?: {
+    type?: DriveFileType;
+    nameQuery?: string;
+    pageSize?: number;
+  }): Promise<DriveFileInfo[]> {
+    return this.listFiles({
+      query: this.buildSearchQuery(options?.type || 'all', options?.nameQuery),
+      pageSize: options?.pageSize || 20,
+    });
   }
 
   public static async createFolder(folderName: string, parentFolderId?: string): Promise<DriveFileInfo> {
@@ -101,8 +114,15 @@ export class GoogleDriveService extends GoogleAuthService {
     }
   }
 
-  private static buildTypeQuery(type: 'spreadsheet' | 'document', nameQuery?: string): string {
-    const clauses = [`mimeType = 'application/vnd.google-apps.${type}'`, 'trashed = false'];
+  private static buildSearchQuery(fileType: DriveFileType, nameQuery?: string): string {
+    const clauses = ['trashed = false'];
+    if (fileType === 'sheets') {
+      clauses.push("mimeType = 'application/vnd.google-apps.spreadsheet'");
+    } else if (fileType === 'docs') {
+      clauses.push("mimeType = 'application/vnd.google-apps.document'");
+    } else if (fileType === 'supported') {
+      clauses.push("(mimeType = 'application/vnd.google-apps.spreadsheet' or mimeType = 'application/vnd.google-apps.document')");
+    }
     if (nameQuery?.trim()) {
       clauses.push(`name contains '${nameQuery.replace(/'/g, "\\'")}'`);
     }

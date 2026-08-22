@@ -18,7 +18,7 @@ interface DataGridProps {
     onDeleteRow?: (rowId: string) => void;
     onAddRow?: () => void;
 }
-export const DataGrid: React.FC<DataGridProps> = ({ rows, sheetTabs = [], allSheetHeaders = {}, activeSheetTitle = 'Sheet1', isLoading = false, isBusy = false, onSelectSheetTab, onUpdateRow, onDeleteRow, onAddRow, }) => {
+export const DataGrid: React.FC<DataGridProps> = ({ rows, sheetTabs = [], allSheetHeaders = {}, activeSheetTitle = '', isLoading = false, isBusy = false, onSelectSheetTab, onUpdateRow, onDeleteRow, onAddRow, }) => {
     const { searchTerm, setSearchTerm, statusFilter, setStatusFilter, editingCell, editValue, setEditValue, columnKeys, numericColumns, primaryColumn, filteredRows, startEditing, saveEditing, handleCellKeyDown, handleExportCSV, } = useDataGridState({ rows, activeSheetTitle, allSheetHeaders, onUpdateRow });
     const renderStatus = (status: RowStatus) => {
         const config = {
@@ -68,13 +68,13 @@ export const DataGrid: React.FC<DataGridProps> = ({ rows, sheetTabs = [], allShe
                 </span>)}
             </div>
             <p className="truncate text-[9px] text-slate-500">
-              {activeSheetTitle} · {filteredRows.length}/{rows.length} dòng hiển thị {columnKeys.length > 0 ? `(${columnKeys.length} cột)` : ''}
+              {activeSheetTitle || 'Chưa chọn trang tính'} · {filteredRows.length}/{rows.length} dòng hiển thị {columnKeys.length > 0 ? `(${columnKeys.length} cột)` : ''}
             </p>
           </div>
         </div>
 
         <div className="flex shrink-0 items-center gap-1.5">
-          {onAddRow && (<button onClick={() => onAddRow()} disabled={isLoading} className="inline-flex h-7 items-center gap-1.5 rounded-md bg-indigo-600 px-2.5 text-[10px] font-semibold text-white transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50" title="Thêm một dòng mới">
+          {onAddRow && (<button onClick={() => onAddRow()} disabled={isLoading || columnKeys.length === 0} className="inline-flex h-7 items-center gap-1.5 rounded-md bg-indigo-600 px-2.5 text-[10px] font-semibold text-white transition-colors hover:bg-indigo-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50" title={columnKeys.length === 0 ? 'Tải dữ liệu trước khi thêm dòng' : 'Thêm một dòng mới'}>
               <Plus className="h-3.5 w-3.5"/>
               Thêm dòng
             </button>)}
@@ -122,7 +122,7 @@ export const DataGrid: React.FC<DataGridProps> = ({ rows, sheetTabs = [], allShe
                   <Loader2 className="h-5 w-5 animate-spin text-cyan-400"/>
                 </div>
                 <p className="text-[12px] font-bold text-slate-200">Đang tải dữ liệu từ Google Sheets...</p>
-                <p className="mt-1 text-[10px] text-slate-500">Đang kết nối và đồng bộ bảng tính {activeSheetTitle}.</p>
+                <p className="mt-1 text-[10px] text-slate-500">Đang kết nối và đồng bộ bảng tính {activeSheetTitle || 'đã chọn'}.</p>
               </div>
             </div>) : columnKeys.length === 0 && rows.length === 0 ? (<div className="grid min-h-[260px] place-items-center p-8 text-center">
               <div>
@@ -150,10 +150,10 @@ export const DataGrid: React.FC<DataGridProps> = ({ rows, sheetTabs = [], allShe
                       <div className="flex flex-col items-center justify-center gap-1.5">
                         <InboxIcon className="h-6 w-6 text-slate-600"/>
                         <p className="text-[11px] font-semibold text-slate-300">
-                          Trang tính "{activeSheetTitle}" có {columnKeys.length} cột nhưng chưa có dòng dữ liệu nào
+                          {columnKeys.length > 0 ? `Trang tính "${activeSheetTitle || 'đã chọn'}" có ${columnKeys.length} cột nhưng chưa có dòng dữ liệu nào` : 'Chưa có dữ liệu để hiển thị'}
                         </p>
                         <p className="text-[9px] text-slate-500">
-                          Bấm nút <span className="text-indigo-400 font-bold">"+ Thêm dòng"</span> ở góc trên hoặc ra lệnh cho DeepSeek AI để thêm dữ liệu tự động.
+                          {columnKeys.length > 0 ? <>Bấm nút <span className="text-indigo-400 font-bold">"+ Thêm dòng"</span> ở góc trên hoặc yêu cầu trợ lý AI thêm dữ liệu.</> : 'Hãy tải tệp hoặc nhập đường dẫn dữ liệu để bắt đầu.'}
                         </p>
                       </div>
                     </td>

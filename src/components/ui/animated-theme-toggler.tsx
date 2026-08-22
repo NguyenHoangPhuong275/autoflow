@@ -2,7 +2,6 @@ import { useCallback, useRef } from 'react';
 import { MoonIcon as Moon, SunIcon as Sun, } from '@heroicons/react/24/outline';
 import { flushSync } from 'react-dom';
 import { cn } from '@/utils/cn';
-import { getErrorMessage } from '@/core/utils/errors';
 import { Theme } from '@/hooks/useTheme';
 interface AnimatedThemeTogglerProps extends React.ComponentPropsWithoutRef<'button'> {
     theme: Theme;
@@ -46,8 +45,8 @@ export const AnimatedThemeToggler = ({ className, theme, onThemeChange, duration
                 easing: 'ease-in-out',
                 pseudoElement: '::view-transition-new(root)',
             });
-        }).catch((error: unknown) => {
-            console.warn(`Không thể chạy hiệu ứng chuyển giao diện: ${getErrorMessage(error)}`);
+        }).catch(() => {
+            isTransitioningRef.current = false;
         });
         transition.finished.finally(() => {
             isTransitioningRef.current = false;
