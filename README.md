@@ -87,38 +87,44 @@ AutoFlow Studio là ứng dụng React/Vite giúp người dùng làm việc v�
 
 ## Kiến trúc
 
-### Sơ đồ tổng thể
+### Sơ đồ phân tầng
+
+Sơ đồ này chỉ mô tả **dependency direction** từ giao diện xuống adapter. Callback runtime và chiều dữ liệu trả về được tách sang sơ đồ flow bên dưới để tránh giao nhau.
 
 ```mermaid
-flowchart LR
-    User[Người dùng]
-    UI[React UI\nDataGrid · Copilot · Modals]
-    Hooks[Hooks điều phối trạng thái\nuseAutomation · useGoogleAuth]
-    Sources[Google Workspace\nSheets · Drive · Docs · Gmail]
-    Local[Local files\nExcel · CSV]
-    Context[Semantic context\nheaders · rows · documents]
-    Agent[AI Agent Core\nprompt · tools · parser]
-    Proxy[Vite DeepSeek proxy\n/api/deepseek/chat/completions]
-    DeepSeek[DeepSeek API\ndeepseek-v4-flash]
-    Executor[Action executor\nhandlers theo domain]
-    GoogleServices[Google service layers\nAuth → Read → Write → Structure → Format]
-    Engine[AutomationEngine\nrow-by-row processing]
+flowchart TB
+    Presentation["1 · Presentation<br/>App.tsx · components/ · UI state"]
+    Application["2 · Application orchestration<br/>hooks/ · AiAgentService · executeAgentActions"]
+    Core["3 · Core logic<br/>prompt · tool catalog · parser · handlers · AutomationEngine"]
+    Adapters["4 · Infrastructure adapters<br/>Google services · Excel/CSV parsers · DeepSeek proxy"]
 
-    User --> UI
-    UI --> Hooks
-    Hooks --> Sources
-    Hooks --> Local
-    Sources --> Context
-    Local --> Context
-    UI --> Agent
-    Context --> Agent
-    Agent --> Proxy --> DeepSeek
-    DeepSeek --> Agent
-    Agent --> Executor
-    Executor --> Hooks
-    Executor --> GoogleServices --> Sources
-    Hooks --> Engine --> DeepSeek
+    Presentation --> Application --> Core --> Adapters
 ```
+
+| Tầng | Trách nhiệm | Thành phần chính |
+| --- | --- | --- |
+| Presentation | Render giao diện, nhận thao tác người dùng | `App.tsx`, `components/` |
+| Application | Điều phối state, context, request và execution report | `hooks/`, `AiAgentService`, `executeAgentActions` |
+| Core | Quy tắc nghiệp vụ độc lập với UI và API | `core/ai/`, `AutomationEngine`, domain handlers |
+| Infrastructure | Kết nối hệ thống bên ngoài và parser | `core/google/`, `core/parsers/`, `vite.config.ts` |
+
+### Runtime request flow
+
+```mermaid
+flowchart TB
+    Source["Nguồn người dùng chọn<br/>Google · Excel · CSV"]
+    Context["Semantic context<br/>headers · rows · documents"]
+    Agent["AI Agent<br/>prompt + tool catalog"]
+    Retrieval["Retrieval<br/>Drive · Docs · Gmail · Sheet"]
+    Model["DeepSeek<br/>deepseek-v4-flash"]
+    Actions["Parse + validate<br/>tool calls · text actions"]
+    Execute["Execute actions<br/>handlers + confirmation"]
+    Result["UI + logs + sync<br/>DataGrid · Terminal · Google"]
+
+    Source --> Context --> Agent --> Retrieval --> Model --> Actions --> Execute --> Result
+```
+
+`Retrieval` chỉ được kích hoạt khi yêu cầu cần đọc thêm nguồn. Không có bước nào tự động liệt kê Drive hoặc seed dữ liệu khi người dùng chưa yêu cầu.
 
 ### Luồng AI request
 
